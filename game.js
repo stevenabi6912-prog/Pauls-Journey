@@ -126,8 +126,7 @@ const Game = {
       choicesEl.appendChild(btn);
     });
 
-    // ── Map + Stats ──
-    this.renderMap();
+    // ── Stats ──
     this.renderStats();
   },
 
@@ -330,6 +329,13 @@ function showMenu() {
 }
 function closeMenu() {
   document.getElementById('menu-overlay').classList.add('hidden');
+}
+
+function showStats() {
+  document.getElementById('stats-drawer').classList.remove('hidden');
+}
+function closeStats() {
+  document.getElementById('stats-drawer').classList.add('hidden');
 }
 function continueFromMenu() {
   closeMenu();

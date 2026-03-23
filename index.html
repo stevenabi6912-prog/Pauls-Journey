@@ -38,164 +38,14 @@
       </div>
       <div id="header-right">
         <span id="journey-badge">Pre-Conversion</span>
+        <button id="stats-btn" onclick="showStats()">⚔ Stats</button>
         <button id="menu-btn" onclick="showMenu()">☰ Menu</button>
       </div>
     </header>
 
     <div id="game-layout">
 
-      <!-- LEFT: MAP -->
-      <aside id="map-panel">
-        <h3 class="panel-title">Journey Map</h3>
-        <div id="map-wrapper">
-          <svg id="journey-map" viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg">
-            <!-- Sea background -->
-            <rect width="400" height="280" fill="#0e2a40"/>
-
-            <!-- NORTH AFRICA -->
-            <polygon points="25,210 80,198 130,193 180,192 230,192 280,192 320,195 350,200 370,210 370,280 25,280" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- IBERIAN PENINSULA -->
-            <polygon points="25,50 55,42 70,55 72,75 65,90 50,100 35,95 25,80 25,50" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- FRANCE / GAUL -->
-            <polygon points="68,42 100,38 115,50 118,68 105,75 88,72 70,62 68,42" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- ITALY (boot shape) -->
-            <polygon points="108,48 118,52 122,65 124,80 122,95 116,108 112,120 114,135 120,148 116,155 110,150 106,138 105,125 107,112 110,98 108,85 104,72 103,60 108,48" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- SICILY -->
-            <polygon points="118,160 135,155 148,158 150,168 138,175 120,172 118,160" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- SARDINIA -->
-            <polygon points="95,100 108,95 112,108 108,122 97,125 93,114 95,100" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- GREEK PENINSULA -->
-            <polygon points="158,95 170,90 180,95 184,108 186,120 183,132 178,142 174,152 170,162 167,172 170,178 174,175 178,165 180,152 178,140 175,128 172,118 168,108 162,100 158,95" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- CRETE -->
-            <polygon points="168,180 185,176 205,175 212,180 208,186 190,188 170,186 168,180" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- ANATOLIA (Turkey) -->
-            <polygon points="192,78 220,72 248,70 270,68 292,72 305,80 308,95 306,110 300,122 292,128 282,126 275,118 265,112 255,108 242,106 230,106 218,108 205,106 196,98 192,88 192,78" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- CYPRUS -->
-            <polygon points="260,140 272,136 284,138 288,145 284,152 272,154 260,150 258,145 260,140" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- LEVANT (Syria/Lebanon/Israel) -->
-            <polygon points="290,128 296,135 300,145 302,158 300,170 295,178 288,180 285,170 284,158 284,146 286,135 290,128" fill="#5c4a28" stroke="#6e5c34" stroke-width="0.5"/>
-
-            <!-- JOURNEY ROUTE LINES -->
-            <g id="journey-lines" opacity="0.6">
-              <polyline id="route-first"  points="282,118 274,143 248,106 253,112 257,117 262,114 282,118" fill="none" stroke="#f0a030" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
-              <polyline id="route-second" points="282,118 218,104 184,98 178,105 174,130 170,136 282,118" fill="none" stroke="#30c0f0" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
-              <polyline id="route-third"  points="282,118 222,108 218,104" fill="none" stroke="#b060f0" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
-              <polyline id="route-rome"   points="284,148 160,165 128,178 110,92" fill="none" stroke="#f04040" stroke-width="1.5" stroke-dasharray="5,3" opacity="0"/>
-            </g>
-
-            <!-- CITY MARKERS -->
-            <g id="city-markers">
-              <g class="city-marker" data-city="Jerusalem">
-                <circle cx="284" cy="150" r="4" class="city-dot"/>
-                <text x="276" y="162" class="city-label" text-anchor="middle">Jerusalem</text>
-              </g>
-              <g class="city-marker" data-city="Road to Damascus">
-                <circle cx="284" cy="138" r="3" class="city-dot"/>
-              </g>
-              <g class="city-marker" data-city="Damascus">
-                <circle cx="286" cy="128" r="4" class="city-dot"/>
-                <text x="292" y="126" class="city-label">Damascus</text>
-              </g>
-              <g class="city-marker" data-city="Antioch, Syria">
-                <circle cx="282" cy="118" r="4" class="city-dot"/>
-                <text x="274" y="112" class="city-label" text-anchor="middle">Antioch</text>
-              </g>
-              <g class="city-marker" data-city="Cyprus">
-                <circle cx="272" cy="145" r="3" class="city-dot"/>
-                <text x="263" y="143" class="city-label" text-anchor="end">Cyprus</text>
-              </g>
-              <g class="city-marker" data-city="Paphos, Cyprus">
-                <circle cx="262" cy="148" r="3" class="city-dot"/>
-              </g>
-              <g class="city-marker" data-city="Antioch in Pisidia">
-                <circle cx="248" cy="106" r="3" class="city-dot"/>
-                <text x="242" y="102" class="city-label" text-anchor="end">Pisidia</text>
-              </g>
-              <g class="city-marker" data-city="Iconium">
-                <circle cx="255" cy="112" r="3" class="city-dot"/>
-                <text x="261" y="110" class="city-label">Iconium</text>
-              </g>
-              <g class="city-marker" data-city="Lystra">
-                <circle cx="258" cy="118" r="3" class="city-dot"/>
-                <text x="264" y="117" class="city-label">Lystra</text>
-              </g>
-              <g class="city-marker" data-city="Derbe">
-                <circle cx="265" cy="113" r="3" class="city-dot"/>
-                <text x="271" y="111" class="city-label">Derbe</text>
-              </g>
-              <g class="city-marker" data-city="Troas">
-                <circle cx="218" cy="104" r="3" class="city-dot"/>
-                <text x="212" y="101" class="city-label" text-anchor="end">Troas</text>
-              </g>
-              <g class="city-marker" data-city="Ephesus">
-                <circle cx="222" cy="112" r="3" class="city-dot"/>
-                <text x="216" y="122" class="city-label" text-anchor="end">Ephesus</text>
-              </g>
-              <g class="city-marker" data-city="Philippi, Macedonia">
-                <circle cx="184" cy="98" r="3" class="city-dot"/>
-                <text x="178" y="95" class="city-label" text-anchor="end">Philippi</text>
-              </g>
-              <g class="city-marker" data-city="Philippi">
-                <circle cx="184" cy="98" r="2" class="city-dot"/>
-              </g>
-              <g class="city-marker" data-city="Philippi Prison">
-                <circle cx="184" cy="98" r="2" class="city-dot"/>
-              </g>
-              <g class="city-marker" data-city="Thessalonica">
-                <circle cx="178" cy="105" r="3" class="city-dot"/>
-                <text x="172" y="103" class="city-label" text-anchor="end">Thessalonica</text>
-              </g>
-              <g class="city-marker" data-city="Athens">
-                <circle cx="170" cy="130" r="3" class="city-dot"/>
-                <text x="164" y="128" class="city-label" text-anchor="end">Athens</text>
-              </g>
-              <g class="city-marker" data-city="Corinth">
-                <circle cx="170" cy="137" r="3" class="city-dot"/>
-                <text x="164" y="148" class="city-label" text-anchor="end">Corinth</text>
-              </g>
-              <g class="city-marker" data-city="Caesarea Maritima">
-                <circle cx="283" cy="142" r="3" class="city-dot"/>
-                <text x="277" y="140" class="city-label" text-anchor="end">Caesarea</text>
-              </g>
-              <g class="city-marker" data-city="Mediterranean Sea">
-                <circle cx="155" cy="168" r="2" class="city-dot"/>
-              </g>
-              <g class="city-marker" data-city="Malta">
-                <circle cx="128" cy="180" r="3" class="city-dot"/>
-                <text x="122" y="178" class="city-label" text-anchor="end">Malta</text>
-              </g>
-              <g class="city-marker" data-city="Rome">
-                <circle cx="110" cy="92" r="5" class="city-dot city-major"/>
-                <text x="104" y="87" class="city-label city-label-major" text-anchor="end">Rome</text>
-              </g>
-              <g class="city-marker" data-city="Syria and Cilicia">
-                <circle cx="268" cy="110" r="2" class="city-dot"/>
-              </g>
-            </g>
-
-            <!-- Current location pulse -->
-            <circle id="location-pulse" cx="-100" cy="-100" r="9" fill="none" stroke="#f0c040" stroke-width="2" class="pulse-ring"/>
-          </svg>
-        </div>
-
-        <div id="map-legend">
-          <span class="legend-item"><span class="legend-dot unvisited-dot"></span>Unvisited</span>
-          <span class="legend-item"><span class="legend-dot visited-dot"></span>Visited</span>
-          <span class="legend-item"><span class="legend-dot current-dot"></span>Current</span>
-        </div>
-      </aside>
-
-      <!-- CENTER: NARRATIVE -->
+      <!-- NARRATIVE -->
       <main id="narrative-panel">
         <div id="scene-header">
           <h2 id="scene-title"></h2>
@@ -211,47 +61,47 @@
         <div id="choices-panel"></div>
       </main>
 
-      <!-- RIGHT: STATS -->
-      <aside id="stats-panel">
-        <div id="player-card">
-          <div id="player-avatar">✝</div>
-          <h3 id="player-name">Saul of Tarsus</h3>
-          <p id="player-role">Pharisee · Tarsus</p>
-        </div>
+    </div>
+  </div>
 
-        <div id="meters">
-          <div class="meter-row">
-            <label class="meter-label">Faith</label>
-            <div class="meter-track">
-              <div class="meter-fill faith-fill" id="faith-bar" style="width:0%"></div>
-            </div>
-            <span class="meter-val" id="faith-value">0</span>
+  <!-- STATS DRAWER (mobile) -->
+  <div id="stats-drawer" class="hidden">
+    <div id="stats-drawer-backdrop" onclick="closeStats()"></div>
+    <div id="stats-drawer-panel">
+      <div id="stats-drawer-handle"></div>
+      <div id="player-card">
+        <div id="player-avatar">✝</div>
+        <h3 id="player-name">Saul of Tarsus</h3>
+        <p id="player-role">Pharisee · Tarsus</p>
+      </div>
+      <div id="meters">
+        <div class="meter-row">
+          <label class="meter-label">Faith</label>
+          <div class="meter-track">
+            <div class="meter-fill faith-fill" id="faith-bar" style="width:0%"></div>
           </div>
-          <div class="meter-row">
-            <label class="meter-label">Health</label>
-            <div class="meter-track">
-              <div class="meter-fill health-fill" id="health-bar" style="width:100%"></div>
-            </div>
-            <span class="meter-val" id="health-value">100</span>
+          <span class="meter-val" id="faith-value">0</span>
+        </div>
+        <div class="meter-row">
+          <label class="meter-label">Health</label>
+          <div class="meter-track">
+            <div class="meter-fill health-fill" id="health-bar" style="width:100%"></div>
           </div>
+          <span class="meter-val" id="health-value">100</span>
         </div>
-
-        <div class="stat-section">
-          <h4 class="stat-heading">Companions</h4>
-          <ul id="companions"><li class="empty-entry">None yet</li></ul>
-        </div>
-
-        <div class="stat-section">
-          <h4 class="stat-heading">Inventory</h4>
-          <ul id="inventory"><li class="empty-entry">Empty</li></ul>
-        </div>
-
-        <div class="stat-section">
-          <h4 class="stat-heading">Journeys Completed</h4>
-          <p id="completed-journeys" class="empty-entry">None yet</p>
-        </div>
-      </aside>
-
+      </div>
+      <div class="stat-section">
+        <h4 class="stat-heading">Companions</h4>
+        <ul id="companions"><li class="empty-entry">None yet</li></ul>
+      </div>
+      <div class="stat-section">
+        <h4 class="stat-heading">Inventory</h4>
+        <ul id="inventory"><li class="empty-entry">Empty</li></ul>
+      </div>
+      <div class="stat-section">
+        <h4 class="stat-heading">Journeys Completed</h4>
+        <p id="completed-journeys" class="empty-entry">None yet</p>
+      </div>
     </div>
   </div>
 

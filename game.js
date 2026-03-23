@@ -117,14 +117,27 @@ const Game = {
     // ── Choices ──
     const choicesEl = document.getElementById('choices-panel');
     choicesEl.innerHTML = '';
-    scene.choices.forEach((choice, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'choice-btn';
-      btn.textContent = choice.text;
-      btn.style.animationDelay = `${i * 0.12}s`;
-      btn.addEventListener('click', () => this.makeChoice(choice));
-      choicesEl.appendChild(btn);
-    });
+    if (scene.choices && scene.choices.length) {
+      scene.choices.forEach((choice, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.textContent = choice.text;
+        btn.style.animationDelay = `${i * 0.12}s`;
+        btn.addEventListener('click', () => this.makeChoice(choice));
+        choicesEl.appendChild(btn);
+      });
+    }
+
+    // ── Special scene triggers ──
+    if (scene.specialScene === 'horse_ride') {
+      setTimeout(() => Game.showHorseScene(), 500);
+    }
+    if (scene.specialScene === 'look_light') {
+      setTimeout(() => Game.showLightScene(), 500);
+    }
+
+    // ── Map ──
+    this.renderMap();
 
     // ── Stats ──
     this.renderStats();
@@ -185,13 +198,47 @@ const Game = {
     this.renderScene(choice.nextScene);
   },
 
+  // ── SPECIAL SCENES ───────────────────────────────────────
+
+  showHorseScene() {
+    this._horseTaps = 0;
+    this._horseTarget = 10;
+    document.getElementById('horse-scene').classList.remove('hidden');
+    document.getElementById('horse-fill').style.width = '0%';
+  },
+
+  horseHold() {
+    this._horseTaps++;
+    const pct = Math.min(100, Math.round((this._horseTaps / this._horseTarget) * 100));
+    document.getElementById('horse-fill').style.width = pct + '%';
+    const btn = document.getElementById('horse-btn');
+    btn.style.transform = 'scale(0.94)';
+    setTimeout(() => { btn.style.transform = ''; }, 120);
+    if (this._horseTaps >= this._horseTarget) {
+      document.getElementById('horse-scene').classList.add('hidden');
+      setTimeout(() => this.renderScene('look_at_light'), 400);
+    }
+  },
+
+  showLightScene() {
+    document.getElementById('light-scene').classList.remove('hidden');
+    setTimeout(() => {
+      document.getElementById('light-btn').classList.remove('hidden');
+    }, 2800);
+  },
+
+  lookAtLight() {
+    document.getElementById('light-scene').classList.add('hidden');
+    this.renderScene('voice_of_jesus');
+  },
+
   // ── RENDER MAP ───────────────────────────────────────────
   renderMap() {
     const visited = this.state.visitedLocations;
     const currentScene = SCENES[this.state.currentScene];
     const currentLocation = currentScene ? currentScene.location : null;
 
-    // Update city marker classes
+    // Update city marker classes — skip gracefully if element missing
     document.querySelectorAll('.city-marker').forEach(marker => {
       const city = marker.dataset.city;
       marker.classList.toggle('visited', visited.includes(city));
@@ -200,13 +247,15 @@ const Game = {
 
     // Move pulse ring to current city
     const pulse = document.getElementById('location-pulse');
-    const currentMarker = document.querySelector(`.city-marker[data-city="${currentLocation}"] .city-dot`);
-    if (currentMarker && pulse) {
-      const cx = parseFloat(currentMarker.getAttribute('cx'));
-      const cy = parseFloat(currentMarker.getAttribute('cy'));
+    const currentDot = document.querySelector(`.city-marker[data-city="${currentLocation}"] .city-dot`);
+    if (currentDot && pulse) {
+      const cx = parseFloat(currentDot.getAttribute('cx'));
+      const cy = parseFloat(currentDot.getAttribute('cy'));
       pulse.setAttribute('cx', cx);
       pulse.setAttribute('cy', cy);
       pulse.setAttribute('opacity', '1');
+    } else if (pulse) {
+      pulse.setAttribute('opacity', '0');
     }
 
     // Show journey route lines
@@ -226,7 +275,7 @@ const Game = {
 
     Object.entries(routeMap).forEach(([journey, id]) => {
       const el = document.getElementById(id);
-      if (!el) return;
+      if (!el) return; // gracefully skip missing elements
       if (journeys.includes(journey) || current === journey) {
         el.setAttribute('opacity', '0.7');
       } else {
@@ -323,6 +372,9 @@ const Game = {
 function startGame()    { Game.start(true); }
 function continueGame() { Game.start(false); }
 function restartGame()  { Game.restart(); }
+
+function horseHold()   { Game.horseHold(); }
+function lookAtLight() { Game.lookAtLight(); }
 
 function showMenu() {
   document.getElementById('menu-overlay').classList.remove('hidden');

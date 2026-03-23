@@ -62,9 +62,21 @@ const Game = {
 
   // ── RENDER SCENE ─────────────────────────────────────────
   renderScene(sceneId) {
+    if (typeof SCENES === 'undefined') {
+      document.getElementById('scene-title').textContent = 'Loading Error';
+      document.getElementById('narrative-text').textContent = 'The scene data (scenes.js) failed to load. Please make sure all 4 game files are uploaded to GitHub, then hard-refresh the page.';
+      document.getElementById('narrative-text').style.opacity = '1';
+      document.getElementById('speaker-box').style.display = 'none';
+      document.getElementById('choices-panel').innerHTML = '';
+      return;
+    }
     const scene = SCENES[sceneId];
     if (!scene) {
       console.error('Scene not found:', sceneId);
+      document.getElementById('scene-title').textContent = 'Scene Missing';
+      document.getElementById('narrative-text').textContent = `Could not find scene: "${sceneId}". Try restarting the game.`;
+      document.getElementById('narrative-text').style.opacity = '1';
+      document.getElementById('speaker-box').style.display = 'none';
       return;
     }
 

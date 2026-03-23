@@ -250,7 +250,7 @@ You do not soften it or apologize for the boldness of it. You simply tell them w
 
 The journey has only just begun.`,
     character: 'The Record of Luke',
-    dialogue: '"And immediately he proclaimed Jesus in the synagogues, saying, 'He is the Son of God.'" — Acts 9:20',
+    dialogue: '"And immediately he proclaimed Jesus in the synagogues, saying, \'He is the Son of God.\'" — Acts 9:20',
     choices: [
       {
         text: 'Continue the journey of Paul',

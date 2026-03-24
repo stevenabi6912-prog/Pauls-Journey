@@ -1,6 +1,6 @@
 /* ============================================================
-   PAUL'S JOURNEYS — Stylesheet
-   Canvas-based top-down RPG
+   PAUL'S JOURNEYS — 3D RPG Stylesheet
+   Three.js top-down RPG — Jerusalem 34 AD
    ============================================================ */
 
 /* ── RESET & BASE ─────────────────────────────────────────── */
@@ -28,8 +28,8 @@ html, body {
   top: 0;
   left: 0;
   display: block;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  width: 100%;
+  height: 100%;
 }
 
 /* ── HUD ──────────────────────────────────────────────────── */
@@ -39,79 +39,87 @@ html, body {
   left: 0;
   right: 0;
   z-index: 10;
-  pointer-events: none;
   display: flex;
-  flex-direction: row;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 10px 14px 0 14px;
-}
-
-#hud-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-#hud-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  padding: 14px 16px;
+  pointer-events: none;
 }
 
 /* Location tag */
 #location-tag {
-  display: inline-block;
   background: rgba(10, 6, 2, 0.82);
-  border: 1.5px solid #c9a84c;
-  border-radius: 4px;
-  padding: 4px 12px 3px 12px;
+  border: 1.5px solid rgba(201, 168, 76, 0.6);
+  border-radius: 6px;
+  padding: 6px 14px 5px 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
 }
 
 #location-name {
   font-family: 'Cinzel', serif;
   font-weight: 600;
-  font-size: 15px;
-  color: #f0c040;
+  font-size: 1rem;
+  color: #c9a84c;
   letter-spacing: 0.08em;
-  text-shadow: 0 0 8px rgba(240, 192, 64, 0.5);
+  text-shadow: 0 0 8px rgba(201, 168, 76, 0.5);
 }
 
 #scripture-ref {
   font-family: 'Crimson Text', Georgia, serif;
   font-style: italic;
-  font-size: 12px;
-  color: #c9a84c;
-  padding-left: 2px;
-  opacity: 0.85;
+  font-size: 0.75rem;
+  color: #a07830;
+  opacity: 0.9;
+  margin-top: 1px;
 }
 
-/* Quest tracker */
-#quest-tracker {
-  background: rgba(10, 6, 2, 0.78);
-  border: 1px solid rgba(201, 168, 76, 0.5);
-  border-radius: 4px;
-  padding: 5px 10px 4px 10px;
-  max-width: 220px;
+/* Quest box */
+#quest-box {
+  background: rgba(10, 6, 2, 0.82);
+  border: 1.5px solid rgba(201, 168, 76, 0.6);
+  border-radius: 6px;
+  padding: 6px 14px 5px 14px;
+  max-width: 200px;
   text-align: right;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
 }
 
 #quest-label {
   font-family: 'Cinzel', serif;
-  font-size: 9px;
+  font-size: 0.6rem;
   font-weight: 700;
   color: #c9a84c;
-  letter-spacing: 0.15em;
-  opacity: 0.8;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   margin-bottom: 2px;
+  opacity: 0.85;
 }
 
 #quest-text {
   font-family: 'Crimson Text', Georgia, serif;
   font-style: italic;
-  font-size: 12px;
-  color: #f0d890;
-  line-height: 1.3;
+  font-size: 0.82rem;
+  color: #e0d0a0;
+  line-height: 1.35;
+}
+
+/* ── INTERACT PROMPT ──────────────────────────────────────── */
+#interact-prompt {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #c9a84c;
+  color: #c9a84c;
+  font-family: 'Cinzel', serif;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
 }
 
 /* ── DIALOGUE BOX ─────────────────────────────────────────── */
@@ -121,160 +129,57 @@ html, body {
   left: 0;
   right: 0;
   z-index: 20;
-  background: rgba(8, 5, 2, 0.92);
-  border-top: 2px solid #c9a84c;
-  padding: 12px 18px 14px 18px;
-  min-height: 110px;
+  padding: 12px 16px 20px;
   cursor: pointer;
 }
 
-#dialogue-box::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #c9a84c 20%, #f0c040 50%, #c9a84c 80%, transparent);
-  opacity: 0.6;
+#dialogue-inner {
+  background: rgba(8, 6, 2, 0.95);
+  border: 2px solid #c9a84c;
+  border-radius: 14px;
+  padding: 14px 18px 12px 18px;
+  max-width: 640px;
+  margin: 0 auto;
+  box-shadow: 0 0 30px rgba(0,0,0,0.7), 0 0 12px rgba(201,168,76,0.2);
+}
+
+#dialogue-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+#dialogue-icon {
+  color: #c9a84c;
+  font-size: 0.9rem;
+  opacity: 0.8;
 }
 
 #dialogue-speaker {
   font-family: 'Cinzel', serif;
   font-weight: 600;
-  font-size: 13px;
-  color: #f0c040;
+  font-size: 0.9rem;
+  color: #c9a84c;
   letter-spacing: 0.06em;
-  margin-bottom: 6px;
-  text-shadow: 0 0 6px rgba(240, 192, 64, 0.4);
+  text-shadow: 0 0 6px rgba(201,168,76,0.4);
 }
 
 #dialogue-text {
   font-family: 'Crimson Text', Georgia, serif;
-  font-size: 16px;
+  font-size: 1.05rem;
   color: #f5ecd0;
-  line-height: 1.55;
-  min-height: 48px;
+  line-height: 1.6;
+  min-height: 4em;
 }
 
 #dialogue-prompt {
   font-family: 'Crimson Text', Georgia, serif;
-  font-size: 12px;
-  color: #c9a84c;
+  font-size: 0.8rem;
+  color: #8a6820;
   text-align: right;
-  margin-top: 6px;
-  animation: blink 1.2s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.2; }
-}
-
-/* ── MOBILE CONTROLS ──────────────────────────────────────── */
-#mobile-controls {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 160px;
-  z-index: 15;
-  pointer-events: none;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-/* Joystick zone: entire left half of screen, full height */
-#joystick-zone {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 50%;
-  height: 100%;
-  z-index: 15;
-  pointer-events: all;
-}
-
-/* Joystick base: appears at touch point, positioned by JS */
-#joystick-base {
-  position: fixed;
-  display: none;
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  background: rgba(10, 6, 2, 0.45);
-  border: 2px solid rgba(201, 168, 76, 0.7);
-  box-shadow: 0 0 12px rgba(201, 168, 76, 0.2);
-  pointer-events: none;
-}
-
-/* Joystick thumb */
-#joystick-thumb {
-  position: absolute;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #f0c040, #c9a84c);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 6px rgba(201, 168, 76, 0.4);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-/* Interact zone: right side */
-#interact-zone {
-  position: fixed;
-  bottom: 24px;
-  right: 20px;
-  z-index: 16;
-  pointer-events: all;
-}
-
-#interact-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: rgba(10, 6, 2, 0.7);
-  border: 2px solid #c9a84c;
-  color: #f0c040;
-  font-family: 'Crimson Text', Georgia, serif;
-  font-size: 13px;
-  line-height: 1.15;
-  cursor: pointer;
-  outline: none;
-  box-shadow: 0 0 10px rgba(201, 168, 76, 0.3);
-  transition: transform 0.08s, box-shadow 0.08s;
-  -webkit-tap-highlight-color: transparent;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-#interact-btn:active {
-  transform: scale(0.92);
-  box-shadow: 0 0 18px rgba(201, 168, 76, 0.6);
-}
-
-#interact-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-/* On desktop (devices that support hover): hide mobile controls */
-@media (hover: hover) and (pointer: fine) {
-  #mobile-controls {
-    display: none;
-  }
-  #joystick-zone {
-    display: none;
-  }
-  #interact-zone {
-    display: none;
-  }
+  margin-top: 8px;
+  animation: blink 1.3s ease-in-out infinite;
 }
 
 /* ── NOTIFICATION ─────────────────────────────────────────── */
@@ -284,43 +189,139 @@ html, body {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 30;
+  background: rgba(8, 6, 2, 0.95);
+  border: 2px solid #c9a84c;
+  border-radius: 12px;
+  padding: 24px 32px;
+  text-align: center;
   pointer-events: none;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8), 0 0 20px rgba(201,168,76,0.25);
+  min-width: 200px;
 }
 
 #notification:not(.hidden) {
-  animation: notif-fadein 0.35s ease forwards;
+  animation: notifAnim 3.5s ease forwards;
 }
 
-#notification-inner {
-  background: rgba(8, 5, 2, 0.93);
-  border: 2px solid #c9a84c;
-  border-radius: 6px;
-  padding: 16px 28px 14px 28px;
-  text-align: center;
-  box-shadow: 0 0 24px rgba(201, 168, 76, 0.35);
-  min-width: 220px;
+#notif-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
 }
 
-#notification-title {
+#notif-text {
   font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: 11px;
+  font-size: 0.95rem;
   color: #c9a84c;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  white-space: pre-line;
 }
 
-#notification-text {
-  font-family: 'Crimson Text', Georgia, serif;
-  font-size: 17px;
-  color: #f0e0b0;
-  line-height: 1.4;
+/* ── MOBILE CONTROLS ──────────────────────────────────────── */
+#mobile-controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 20px 32px;
+  pointer-events: none;
 }
 
-@keyframes notif-fadein {
-  from { opacity: 0; transform: translate(-50%, -44%) scale(0.92); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+#joystick-zone {
+  width: 50vw;
+  max-width: 200px;
+  height: 140px;
+  pointer-events: all;
+  position: relative;
+}
+
+#joystick-base {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(201, 168, 76, 0.15);
+  border: 2px solid rgba(201, 168, 76, 0.5);
+  opacity: 0;
+  transition: opacity 0.1s;
+  pointer-events: none;
+}
+
+#joystick-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(201, 168, 76, 0.8);
+  border: 2px solid #c9a84c;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.4);
+  pointer-events: none;
+}
+
+#interact-btn {
+  pointer-events: all;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(201, 168, 76, 0.2);
+  border: 2px solid #c9a84c;
+  color: #c9a84c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  gap: 2px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.2);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+#interact-btn:active {
+  transform: scale(0.92);
+  box-shadow: 0 0 20px rgba(201, 168, 76, 0.5);
+}
+
+#btn-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+#btn-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+/* Desktop: hide mobile controls */
+@media (hover: hover) and (pointer: fine) {
+  #mobile-controls {
+    display: none;
+  }
+  #interact-btn {
+    display: none;
+  }
+}
+
+/* ── ANIMATIONS ───────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+@keyframes notifAnim {
+  0%   { opacity: 0; transform: translate(-50%, calc(-50% - 20px)); }
+  15%  { opacity: 1; transform: translate(-50%, -50%); }
+  80%  { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -50%); }
 }
 
 /* ── UTILITY ──────────────────────────────────────────────── */

@@ -1,40 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Paul's Journeys — A Biblical RPG</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
 </head>
 <body>
-
-  <!-- Game canvas fills entire screen -->
   <canvas id="game-canvas"></canvas>
 
-  <!-- HUD: top overlay -->
+  <!-- HUD -->
   <div id="hud">
-    <div id="hud-left">
-      <div id="location-tag">
-        <span id="location-name">Jerusalem</span>
-      </div>
-      <div id="scripture-ref">Acts 9:1–9</div>
+    <div id="location-tag">
+      <div id="location-name">Jerusalem</div>
+      <div id="scripture-ref">Acts 9:1</div>
     </div>
-    <div id="hud-right">
-      <div id="quest-tracker">
-        <div id="quest-label">QUEST</div>
-        <div id="quest-text">Find the High Priest in the Temple</div>
-      </div>
+    <div id="quest-box">
+      <div id="quest-label">QUEST</div>
+      <div id="quest-text">Find the High Priest in the Temple</div>
     </div>
   </div>
 
-  <!-- Dialogue box: bottom overlay -->
+  <!-- Interact prompt (desktop) -->
+  <div id="interact-prompt" class="hidden">[E] Talk</div>
+
+  <!-- Dialogue box -->
   <div id="dialogue-box" class="hidden">
-    <div id="dialogue-speaker"></div>
-    <div id="dialogue-text"></div>
-    <div id="dialogue-prompt">▼ Tap to continue</div>
+    <div id="dialogue-inner">
+      <div id="dialogue-header">
+        <span id="dialogue-icon">&#10022;</span>
+        <span id="dialogue-speaker"></span>
+      </div>
+      <div id="dialogue-text"></div>
+      <div id="dialogue-prompt">&#9660; Tap to continue</div>
+    </div>
+  </div>
+
+  <!-- Notification popup -->
+  <div id="notification" class="hidden">
+    <div id="notif-icon">&#128220;</div>
+    <div id="notif-text"></div>
   </div>
 
   <!-- Mobile controls -->
@@ -44,22 +50,21 @@
         <div id="joystick-thumb"></div>
       </div>
     </div>
-    <div id="interact-zone">
-      <button id="interact-btn" aria-label="Interact / Talk">
-        <span id="interact-icon">⚡</span><br/>Talk
-      </button>
-    </div>
-  </div>
-
-  <!-- Quest item notification: center screen popup -->
-  <div id="notification" class="hidden">
-    <div id="notification-inner">
-      <div id="notification-title">Item Received</div>
-      <div id="notification-text"></div>
-    </div>
+    <button id="interact-btn">
+      <span id="btn-icon">&#9889;</span>
+      <span id="btn-label">Talk</span>
+    </button>
   </div>
 
   <script src="scenes.js"></script>
-  <script src="game.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="game.js"></script>
 </body>
 </html>

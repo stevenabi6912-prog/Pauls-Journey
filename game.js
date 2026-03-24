@@ -1,1092 +1,1071 @@
+import * as THREE from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass }      from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader }      from 'three/addons/shaders/FXAAShader.js';
+import { Sky }             from 'three/addons/objects/Sky.js';
+
 // ============================================================
-//  PAUL'S JOURNEYS — Game Engine (game.js)
-//  Canvas-based top-down RPG
+//  PAUL'S JOURNEYS — 3D Game Engine (game.js)
+//  Three.js top-down RPG — Jerusalem 34 AD
 // ============================================================
 
-// ── CONSTANTS ─────────────────────────────────────────────
-const TILE_SIZE    = 48;
-const PLAYER_SPEED = 2.8;
-const CAM_LERP     = 0.1;
-const SOLID_TILES  = new Set([T.WALL, T.TEMPLE_WALL, T.PALM, T.STALL]);
-
-// ── TILE COLORS ────────────────────────────────────────────
-const TILE_COLORS = {
-  [T.SAND]:         { base: '#c4956a', dark: '#b4855a', light: '#d4a57a' },
-  [T.WALL]:         { base: '#7a5030', dark: '#5a3010', light: '#8a6040' },
-  [T.TEMPLE_WALL]:  { base: '#ddd0a0', dark: '#c8bc8a', light: '#eee0b0' },
-  [T.PATH]:         { base: '#9a8870', dark: '#8a7860', light: '#aaa080' },
-  [T.DOOR]:         { base: '#8b5e2a', dark: '#6b3e0a', light: '#ab7e4a' },
-  [T.PALM]:         { base: '#c4956a', dark: '#b4855a', light: '#d4a57a' },
-  [T.STALL]:        { base: '#c4956a', dark: '#b4855a', light: '#d4a57a' },
-  [T.TEMPLE_FLOOR]: { base: '#f0ead0', dark: '#e0dac0', light: '#fff8e0' },
-  [T.STEPS]:        { base: '#c0b080', dark: '#b0a070', light: '#d0c090' },
-  [T.GATE]:         { base: '#7a6040', dark: '#5a4020', light: '#9a8060' },
-  [T.ALTAR]:        { base: '#d0c890', dark: '#c0b880', light: '#e0d8a0' },
-};
-
-// Stall awning colors by (tx+ty)%4
-const STALL_COLORS = ['#a03028', '#703090', '#285090', '#b06020'];
-
-// ── GAME OBJECT ────────────────────────────────────────────
 const Game = {
+  renderer:    null,
+  composer:    null,
+  fxaaPass:    null,
+  scene:       null,
+  camera:      null,
+  playerGroup: null,
+  npcObjects:  {},   // id -> { group, data }
+  lampLights:  [],
 
-  // ── STATE ────────────────────────────────────────────────
-  state: {
-    player: {
-      x: 12.5 * TILE_SIZE,
-      y: 17.5 * TILE_SIZE,
-      width: 18,
-      height: 24,
-      vx: 0,
-      vy: 0,
-      direction: 'south',
-      frame: 0,
-      frameTimer: 0,
-      moving: false,
-    },
-    cam: { x: 0, y: 0 },
-    keys: {},
-    joy: {
-      active: false,
-      angle: 0,
-      mag: 0,
-      baseX: 0,
-      baseY: 0,
-      thumbDX: 0,
-      thumbDY: 0,
-    },
-    dialogueActive: false,
-    dialogueQueue: [],
-    dialogueIndex: 0,
-    dialogueTarget: '',
-    dialogueText: '',
-    dialogueTyping: false,
-    typeTimer: null,
-    currentNPC: null,
-    hasLetters: false,
-    damascusTriggered: false,
-    interactCooldown: 0,
-    npcs: [],
+  player: {
+    pos:        null,   // THREE.Vector3, set in init
+    speed:      6,      // units/second
+    moving:     false,
+    animTime:   0,
+    facingAngle: 0,
   },
 
-  // ── INIT ────────────────────────────────────────────────
+  cam: {
+    offsetY: 9,
+    offsetZ: 12,
+    pos:     null,   // THREE.Vector3, set in init
+  },
+
+  keys: {},
+  joy:  { active: false, angle: 0, mag: 0 },
+
+  dialogueActive:   false,
+  dialogueQueue:    [],
+  dialogueIndex:    0,
+  dialogueTyping:   false,
+  typeTimer:        null,
+  dialogueCallback: null,
+  currentDialogueNPC: null,
+
+  hasLetters:         false,
+  damascusTriggered:  false,
+  interactCooldown:   0,
+  lastTime:           0,
+
+  // ── DOM REFS ──────────────────────────────────────────────
+  elDialogueBox:    null,
+  elDialogueSpeaker: null,
+  elDialogueText:   null,
+  elDialoguePrompt: null,
+  elInteractPrompt: null,
+  elQuestText:      null,
+  elScriptureRef:   null,
+  elNotification:   null,
+  elNotifText:      null,
+  elJoyBase:        null,
+  elJoyThumb:       null,
+
+  // ── INIT ─────────────────────────────────────────────────
   init() {
-    this.canvas  = document.getElementById('game-canvas');
-    this.ctx     = this.canvas.getContext('2d');
+    const canvas = document.getElementById('game-canvas');
 
-    // Cache DOM refs
-    this.elDialogueBox     = document.getElementById('dialogue-box');
-    this.elDialogueSpeaker = document.getElementById('dialogue-speaker');
-    this.elDialogueText    = document.getElementById('dialogue-text');
-    this.elNotification    = document.getElementById('notification');
-    this.elNotifText       = document.getElementById('notification-text');
-    this.elQuestText       = document.getElementById('quest-text');
-    this.elJoyBase         = document.getElementById('joystick-base');
-    this.elJoyThumb        = document.getElementById('joystick-thumb');
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.1;
 
-    // Initial resize
+    // Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x87b8d4);
+    this.scene.fog = new THREE.Fog(0xc8a870, 35, 75);
+
+    // Camera
+    const aspect = window.innerWidth / window.innerHeight;
+    this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 200);
+
+    // Player state
+    this.player.pos = new THREE.Vector3(0, 0, 17);
+    this.cam.pos    = new THREE.Vector3(0, 9, 29);
+
+    // Build world
+    this.setupLighting();
+    this.buildWorld();
+    this.buildPlayer();
+    this.buildNPCs();
+
+    // Resize
     this.resize();
     window.addEventListener('resize', () => this.resize());
 
+    // Cache DOM
+    this.elDialogueBox     = document.getElementById('dialogue-box');
+    this.elDialogueSpeaker = document.getElementById('dialogue-speaker');
+    this.elDialogueText    = document.getElementById('dialogue-text');
+    this.elDialoguePrompt  = document.getElementById('dialogue-prompt');
+    this.elInteractPrompt  = document.getElementById('interact-prompt');
+    this.elQuestText       = document.getElementById('quest-text');
+    this.elScriptureRef    = document.getElementById('scripture-ref');
+    this.elNotification    = document.getElementById('notification');
+    this.elNotifText       = document.getElementById('notif-text');
+    this.elJoyBase         = document.getElementById('joystick-base');
+    this.elJoyThumb        = document.getElementById('joystick-thumb');
+
+    // Input
+    this.setupInput();
+
+    // Start loop
+    this.lastTime = performance.now();
+    requestAnimationFrame(t => this.loop(t));
+  },
+
+  // ── RESIZE ────────────────────────────────────────────────
+  resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  },
+
+  // ── LIGHTING ──────────────────────────────────────────────
+  setupLighting() {
+    // Warm ambient
+    const ambient = new THREE.AmbientLight(0xffe8c0, 0.6);
+    this.scene.add(ambient);
+
+    // Sun (directional)
+    const sun = new THREE.DirectionalLight(0xffd060, 1.4);
+    sun.position.set(20, 30, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width  = 2048;
+    sun.shadow.mapSize.height = 2048;
+    sun.shadow.camera.left   = -30;
+    sun.shadow.camera.right  =  30;
+    sun.shadow.camera.top    =  30;
+    sun.shadow.camera.bottom = -30;
+    sun.shadow.camera.near   = 1;
+    sun.shadow.camera.far    = 100;
+    sun.shadow.bias = -0.001;
+    this.scene.add(sun);
+
+    // Cool fill from the north
+    const fill = new THREE.DirectionalLight(0x8090b0, 0.25);
+    fill.position.set(-15, 8, -10);
+    this.scene.add(fill);
+  },
+
+  // ── BUILD WORLD ───────────────────────────────────────────
+  buildWorld() {
+    // Ground plane
+    const groundGeo = new THREE.PlaneGeometry(80, 80);
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0xc4956a });
+    const ground    = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    this.scene.add(ground);
+
+    // Buildings
+    for (const b of WORLD.buildings) {
+      this.addBuilding(b);
+    }
+
+    // Paths
+    for (const p of WORLD.paths) {
+      this.addPath(p);
+    }
+
+    // Palm trees
+    for (const palm of WORLD.palms) {
+      this.addPalm(palm.x, palm.z);
+    }
+
+    // Market stalls
+    for (const stall of WORLD.stalls) {
+      this.addStall(stall);
+    }
+
+    // Decorations
+    for (const dec of WORLD.decorations) {
+      this.addDecoration(dec);
+    }
+  },
+
+  addBuilding(b) {
+    const geo  = new THREE.BoxGeometry(b.w, b.h, b.d);
+    const mat  = new THREE.MeshLambertMaterial({ color: b.color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(b.x, b.h / 2, b.z);
+    mesh.castShadow    = true;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+
+    if (b.roofColor !== undefined) {
+      const rGeo  = new THREE.BoxGeometry(b.w + 0.15, 0.18, b.d + 0.15);
+      const rMat  = new THREE.MeshLambertMaterial({ color: b.roofColor });
+      const roof  = new THREE.Mesh(rGeo, rMat);
+      roof.position.set(b.x, b.h + 0.09, b.z);
+      roof.castShadow = true;
+      this.scene.add(roof);
+    }
+  },
+
+  addPath(p) {
+    const geo  = new THREE.BoxGeometry(p.w, 0.06, p.d);
+    const mat  = new THREE.MeshLambertMaterial({ color: p.color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(p.x, 0.03, p.z);
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+  },
+
+  addPalm(x, z) {
+    // Trunk
+    const trunkGeo  = new THREE.CylinderGeometry(0.13, 0.2, 3.2, 6);
+    const trunkMat  = new THREE.MeshLambertMaterial({ color: 0x7a5010 });
+    const trunk     = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.position.set(x, 1.6, z);
+    trunk.castShadow = true;
+    this.scene.add(trunk);
+
+    // Leaf clusters
+    const leafOffsets = [
+      [  0,    0,    0   ],
+      [  0.9, -0.3,  0.2 ],
+      [ -0.9, -0.3,  0.2 ],
+      [  0.2, -0.3,  0.9 ],
+      [ -0.2, -0.3, -0.9 ],
+      [  0.6, -0.2, -0.6 ],
+    ];
+    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2d7a2d });
+    for (const off of leafOffsets) {
+      const leafGeo  = new THREE.SphereGeometry(0.55, 5, 4);
+      const leaf     = new THREE.Mesh(leafGeo, leafMat);
+      leaf.scale.set(1, 0.28, 1);
+      leaf.position.set(x + off[0], 3.4 + off[1], z + off[2]);
+      leaf.castShadow = true;
+      this.scene.add(leaf);
+    }
+  },
+
+  addStall(s) {
+    const group = new THREE.Group();
+
+    // Table top
+    const topGeo = new THREE.BoxGeometry(2.2, 0.1, 1.3);
+    const topMat = new THREE.MeshLambertMaterial({ color: 0x8b5e2a });
+    const top    = new THREE.Mesh(topGeo, topMat);
+    top.position.y = 0.85;
+    top.castShadow = true;
+    group.add(top);
+
+    // 4 legs
+    const legGeo = new THREE.BoxGeometry(0.1, 0.85, 0.1);
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x6b3e0a });
+    const legPositions = [
+      [ 0.95, 0.425,  0.55],
+      [-0.95, 0.425,  0.55],
+      [ 0.95, 0.425, -0.55],
+      [-0.95, 0.425, -0.55],
+    ];
+    for (const lp of legPositions) {
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(lp[0], lp[1], lp[2]);
+      group.add(leg);
+    }
+
+    // Awning
+    const awningGeo = new THREE.BoxGeometry(2.5, 0.1, 1.6);
+    const awningMat = new THREE.MeshLambertMaterial({ color: s.color });
+    const awning    = new THREE.Mesh(awningGeo, awningMat);
+    awning.position.y = 2.0;
+    awning.castShadow = true;
+    group.add(awning);
+
+    // 4 awning poles
+    const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.15, 5);
+    const poleMat = new THREE.MeshLambertMaterial({ color: 0x6b3e0a });
+    const polePositions = [
+      [ 0.95, 1.42,  0.55],
+      [-0.95, 1.42,  0.55],
+      [ 0.95, 1.42, -0.55],
+      [-0.95, 1.42, -0.55],
+    ];
+    for (const pp of polePositions) {
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.set(pp[0], pp[1], pp[2]);
+      group.add(pole);
+    }
+
+    // 3 item spheres on table
+    const itemColors = [0xc8a820, 0xc03018, 0x80a030];
+    const itemGeo    = new THREE.SphereGeometry(0.13, 5, 4);
+    for (let i = 0; i < 3; i++) {
+      const itemMat  = new THREE.MeshLambertMaterial({ color: itemColors[i] });
+      const item     = new THREE.Mesh(itemGeo, itemMat);
+      item.position.set(-0.5 + i * 0.5, 0.97, 0);
+      group.add(item);
+    }
+
+    group.position.set(s.x, 0, s.z);
+    this.scene.add(group);
+  },
+
+  addDecoration(d) {
+    if (d.type === 'pot') {
+      const geo  = new THREE.CylinderGeometry(0.18, 0.12, 0.4, 7);
+      const mat  = new THREE.MeshLambertMaterial({ color: 0xa05030 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(d.x, 0.2, d.z);
+      mesh.castShadow = true;
+      this.scene.add(mesh);
+
+    } else if (d.type === 'lamp') {
+      // Pole
+      const poleGeo  = new THREE.CylinderGeometry(0.05, 0.05, 2.8, 5);
+      const poleMat  = new THREE.MeshLambertMaterial({ color: 0x6a4a20 });
+      const pole     = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.set(d.x, 1.4, d.z);
+      this.scene.add(pole);
+
+      // Globe
+      const globeGeo = new THREE.SphereGeometry(0.16, 7, 5);
+      const globeMat = new THREE.MeshLambertMaterial({
+        color: 0xffd070,
+        emissive: new THREE.Color(0xffd070),
+        emissiveIntensity: 0.6,
+      });
+      const globe = new THREE.Mesh(globeGeo, globeMat);
+      globe.position.set(d.x, 2.9, d.z);
+      this.scene.add(globe);
+
+      // Point light
+      const light = new THREE.PointLight(0xffd070, 0.8, 6);
+      light.position.set(d.x, 2.9, d.z);
+      this.scene.add(light);
+      this.lampLights.push(light);
+    }
+  },
+
+  // ── BUILD PLAYER ──────────────────────────────────────────
+  buildPlayer() {
+    const group = new THREE.Group();
+
+    // Robe
+    const robeGeo = new THREE.CylinderGeometry(0.22, 0.38, 1.05, 8);
+    const robeMat = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
+    const robe    = new THREE.Mesh(robeGeo, robeMat);
+    robe.position.y = 0.525;
+    robe.castShadow = true;
+    group.add(robe);
+    group.robe = robe;
+
+    // Robe hem accent ring
+    const hemGeo = new THREE.CylinderGeometry(0.39, 0.39, 0.07, 8);
+    const hemMat = new THREE.MeshLambertMaterial({ color: 0xc9a84c });
+    const hem    = new THREE.Mesh(hemGeo, hemMat);
+    hem.position.y = 0.035;
+    group.add(hem);
+
+    // Belt
+    const beltGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.07, 8);
+    const beltMat = new THREE.MeshLambertMaterial({ color: 0x8b5e20 });
+    const belt    = new THREE.Mesh(beltGeo, beltMat);
+    belt.position.y = 0.72;
+    group.add(belt);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.23, 8, 6);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xc09060 });
+    const head    = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 1.26;
+    head.castShadow = true;
+    group.add(head);
+
+    // Headband ring
+    const bandGeo = new THREE.TorusGeometry(0.23, 0.03, 4, 12);
+    const bandMat = new THREE.MeshLambertMaterial({ color: 0xc9a84c });
+    const band    = new THREE.Mesh(bandGeo, bandMat);
+    band.rotation.x = Math.PI / 2;
+    band.position.y = 1.30;
+    group.add(band);
+
+    // Beard
+    const beardGeo = new THREE.SphereGeometry(0.13, 6, 4);
+    const beardMat = new THREE.MeshLambertMaterial({ color: 0x4a3020 });
+    const beard    = new THREE.Mesh(beardGeo, beardMat);
+    beard.scale.set(1, 0.7, 0.8);
+    beard.position.set(0, 1.14, 0.15);
+    group.add(beard);
+
+    group.position.set(0, 0, 17);
+    this.playerGroup = group;
+    this.scene.add(group);
+  },
+
+  // ── BUILD NPCs ────────────────────────────────────────────
+  buildNPCs() {
+    for (const npcData of WORLD.npcs) {
+      const group = this.createNPCGroup(npcData);
+      group.position.set(npcData.x, 0, npcData.z);
+      this.npcObjects[npcData.id] = { group: group, data: npcData };
+      this.scene.add(group);
+    }
+  },
+
+  createNPCGroup(npc) {
+    const group = new THREE.Group();
+
+    if (npc.isHighPriest) {
+      // Wider robe
+      const robeGeo = new THREE.CylinderGeometry(0.26, 0.46, 1.1, 8);
+      const robeMat = new THREE.MeshLambertMaterial({ color: npc.bodyColor });
+      const robe    = new THREE.Mesh(robeGeo, robeMat);
+      robe.position.y = 0.55;
+      robe.castShadow = true;
+      group.add(robe);
+
+      // Wider hem
+      const hemGeo = new THREE.CylinderGeometry(0.47, 0.47, 0.07, 8);
+      const hemMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const hem    = new THREE.Mesh(hemGeo, hemMat);
+      hem.position.y = 0.035;
+      group.add(hem);
+
+      // Larger head
+      const headGeo = new THREE.SphereGeometry(0.25, 8, 6);
+      const headMat = new THREE.MeshLambertMaterial({ color: npc.headColor });
+      const head    = new THREE.Mesh(headGeo, headMat);
+      head.position.y = 1.32;
+      head.castShadow = true;
+      group.add(head);
+
+      // Mitre (tall priest hat)
+      const mitreGeo = new THREE.CylinderGeometry(0.07, 0.24, 0.55, 6);
+      const mitreMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e0 });
+      const mitre    = new THREE.Mesh(mitreGeo, mitreMat);
+      mitre.position.y = 1.87;
+      group.add(mitre);
+
+      // Breastplate
+      const bpGeo = new THREE.BoxGeometry(0.4, 0.32, 0.06);
+      const bpMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const bp    = new THREE.Mesh(bpGeo, bpMat);
+      bp.position.set(0, 0.85, 0.28);
+      group.add(bp);
+
+      // 4 gems on breastplate (2x2 grid)
+      const gemColors = [0xff2020, 0x2040ff, 0x20c040, 0xffd020];
+      const gemGeo    = new THREE.BoxGeometry(0.07, 0.07, 0.07);
+      const gemPositions = [
+        [-0.1,  0.05, 0.06],
+        [ 0.1,  0.05, 0.06],
+        [-0.1, -0.08, 0.06],
+        [ 0.1, -0.08, 0.06],
+      ];
+      for (let i = 0; i < 4; i++) {
+        const gemMat = new THREE.MeshLambertMaterial({ color: gemColors[i] });
+        const gem    = new THREE.Mesh(gemGeo, gemMat);
+        gem.position.set(
+          bp.position.x + gemPositions[i][0],
+          bp.position.y + gemPositions[i][1],
+          bp.position.z + gemPositions[i][2]
+        );
+        group.add(gem);
+      }
+
+    } else {
+      // Regular NPC robe
+      const robeGeo = new THREE.CylinderGeometry(0.2, 0.35, 1.0, 7);
+      const robeMat = new THREE.MeshLambertMaterial({ color: npc.bodyColor });
+      const robe    = new THREE.Mesh(robeGeo, robeMat);
+      robe.position.y = 0.5;
+      robe.castShadow = true;
+      group.add(robe);
+
+      // Hem
+      const hemGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.06, 7);
+      const hemMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const hem    = new THREE.Mesh(hemGeo, hemMat);
+      hem.position.y = 0.03;
+      group.add(hem);
+
+      // Head
+      const headGeo = new THREE.SphereGeometry(0.21, 8, 6);
+      const headMat = new THREE.MeshLambertMaterial({ color: npc.headColor });
+      const head    = new THREE.Mesh(headGeo, headMat);
+      head.position.y = 1.21;
+      head.castShadow = true;
+      group.add(head);
+
+      // Head wrap
+      const wrapGeo = new THREE.CylinderGeometry(0.215, 0.215, 0.055, 8);
+      const wrapMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const wrap    = new THREE.Mesh(wrapGeo, wrapMat);
+      wrap.position.y = 1.25;
+      group.add(wrap);
+    }
+
+    return group;
+  },
+
+  // ── INPUT ─────────────────────────────────────────────────
+  setupInput() {
     // Keyboard
     window.addEventListener('keydown', (e) => {
-      this.state.keys[e.code] = true;
-      // Interact on E or Space
-      if (e.code === 'KeyE' || e.code === 'Space') {
+      this.keys[e.key] = true;
+      if (e.key === 'e' || e.key === 'E' || e.key === ' ') {
         e.preventDefault();
         this.tryInteract();
       }
-    });
-    window.addEventListener('keyup', (e) => {
-      this.state.keys[e.code] = false;
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) !== -1) {
+        e.preventDefault();
+      }
     });
 
-    // Dialogue click (tap anywhere on dialogue box to advance)
-    this.elDialogueBox.addEventListener('click', () => {
-      this.advanceDialogue();
+    window.addEventListener('keyup', (e) => {
+      this.keys[e.key] = false;
     });
-    this.elDialogueBox.addEventListener('touchend', (e) => {
-      e.preventDefault();
+
+    // Dialogue advance on click
+    const dialogueBox = document.getElementById('dialogue-box');
+    dialogueBox.addEventListener('click', () => {
       this.advanceDialogue();
     });
 
     // Interact button (mobile)
     const interactBtn = document.getElementById('interact-btn');
-    if (interactBtn) {
-      interactBtn.addEventListener('click', () => this.tryInteract());
-      interactBtn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        this.tryInteract();
-      });
-    }
+    interactBtn.addEventListener('click', () => {
+      this.tryInteract();
+    });
 
     // Joystick
     this.setupJoystick();
-
-    // Init NPCs from data
-    this.state.npcs = NPCS_DATA.map(function(npc) {
-      return {
-        id:          npc.id,
-        name:        npc.name,
-        x:           (npc.tileX + 0.5) * TILE_SIZE,
-        y:           (npc.tileY + 0.5) * TILE_SIZE,
-        bodyColor:   npc.bodyColor,
-        accentColor: npc.accentColor,
-        headColor:   npc.headColor,
-        isHighPriest: !!npc.isHighPriest,
-        dialogues:   npc.dialogues,
-        onComplete:  npc.onComplete,
-        dialogueIndex: 0,
-      };
-    });
-
-    // Center camera on player initially
-    var p = this.state.player;
-    this.state.cam.x = p.x - this.canvas.width  / 2;
-    this.state.cam.y = p.y - this.canvas.height / 2;
-    this.clampCamera();
-
-    // Start loop
-    this._lastTime = 0;
-    requestAnimationFrame((t) => this.loop(t));
   },
 
-  // ── RESIZE ──────────────────────────────────────────────
-  resize() {
-    this.canvas.width  = window.innerWidth;
-    this.canvas.height = window.innerHeight;
-    this.clampCamera();
-  },
-
-  // ── JOYSTICK SETUP ──────────────────────────────────────
   setupJoystick() {
-    var self  = this;
-    var joy   = this.state.joy;
-    var zone  = document.getElementById('joystick-zone');
-    if (!zone) return;
+    const zone  = document.getElementById('joystick-zone');
+    const base  = document.getElementById('joystick-base');
+    const thumb = document.getElementById('joystick-thumb');
 
-    var touchId = null;
+    let originX = 0;
+    let originY = 0;
+    const DEAD  = 45; // max radius in px
 
-    zone.addEventListener('touchstart', function(e) {
+    zone.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      if (touchId !== null) return;
-      var touch = e.changedTouches[0];
-      touchId = touch.identifier;
+      const touch = e.changedTouches[0];
+      originX = touch.clientX;
+      originY = touch.clientY;
 
-      joy.active = true;
-      joy.baseX  = touch.clientX;
-      joy.baseY  = touch.clientY;
-      joy.thumbDX = 0;
-      joy.thumbDY = 0;
-      joy.mag     = 0;
-      joy.angle   = 0;
+      // Position base centered on touch point
+      base.style.left    = (originX - 45) + 'px';
+      base.style.top     = (originY - 45) + 'px';
+      base.style.opacity = '1';
 
-      // Position joystick base at touch point
-      self.elJoyBase.style.display = 'block';
-      self.elJoyBase.style.left    = (touch.clientX - 45) + 'px';
-      self.elJoyBase.style.top     = (touch.clientY - 45) + 'px';
-      self.elJoyThumb.style.transform = 'translate(-50%, -50%)';
+      // Reset thumb to center
+      thumb.style.transform = 'translate(-50%, -50%)';
+
+      this.joy.active = true;
+      this.joy.mag    = 0;
     }, { passive: false });
 
-    zone.addEventListener('touchmove', function(e) {
+    zone.addEventListener('touchmove', (e) => {
       e.preventDefault();
-      var touch = null;
-      for (var i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId) {
-          touch = e.changedTouches[i];
-          break;
-        }
-      }
-      if (!touch) return;
+      if (!this.joy.active) return;
+      const touch = e.changedTouches[0];
+      const dx  = touch.clientX - originX;
+      const dy  = touch.clientY - originY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const clamped = Math.min(dist, DEAD);
+      const nx = dist > 0 ? dx / dist : 0;
+      const ny = dist > 0 ? dy / dist : 0;
 
-      var dx = touch.clientX - joy.baseX;
-      var dy = touch.clientY - joy.baseY;
-      var dist = Math.sqrt(dx * dx + dy * dy);
-      var maxR = 40;
+      thumb.style.transform = 'translate(calc(-50% + ' + (nx * clamped) + 'px), calc(-50% + ' + (ny * clamped) + 'px))';
 
-      joy.angle = Math.atan2(dy, dx);
-      joy.mag   = Math.min(dist / maxR, 1);
-
-      var clampedDist = Math.min(dist, maxR);
-      joy.thumbDX = (dx / dist) * clampedDist;
-      joy.thumbDY = (dy / dist) * clampedDist;
-
-      // Move thumb inside base
-      var tx = 45 + joy.thumbDX - 18;
-      var ty = 45 + joy.thumbDY - 18;
-      self.elJoyThumb.style.transform = 'none';
-      self.elJoyThumb.style.left = tx + 'px';
-      self.elJoyThumb.style.top  = ty + 'px';
+      this.joy.angle = Math.atan2(dy, dx);
+      this.joy.mag   = Math.min(dist / DEAD, 1);
     }, { passive: false });
 
-    function endTouch(e) {
+    const endJoy = (e) => {
       e.preventDefault();
-      for (var i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId) {
-          touchId = null;
-          joy.active  = false;
-          joy.mag     = 0;
-          joy.thumbDX = 0;
-          joy.thumbDY = 0;
-          self.elJoyBase.style.display = 'none';
-          self.elJoyThumb.style.transform = 'translate(-50%, -50%)';
-          self.elJoyThumb.style.left = '';
-          self.elJoyThumb.style.top  = '';
-          break;
-        }
-      }
-    }
+      thumb.style.transform = 'translate(-50%, -50%)';
+      base.style.opacity    = '0';
+      this.joy.mag    = 0;
+      this.joy.active = false;
+    };
 
-    zone.addEventListener('touchend',    endTouch, { passive: false });
-    zone.addEventListener('touchcancel', endTouch, { passive: false });
+    zone.addEventListener('touchend',    endJoy, { passive: false });
+    zone.addEventListener('touchcancel', endJoy, { passive: false });
   },
 
-  // ── MAIN LOOP ────────────────────────────────────────────
+  // ── GAME LOOP ─────────────────────────────────────────────
   loop(time) {
-    var dt = (time - this._lastTime) / (1000 / 60);
-    this._lastTime = time;
-    if (dt > 3)  dt = 3;
-    if (dt < 0)  dt = 0;
-
+    const dt = Math.min((time - this.lastTime) / 1000, 0.05);
+    this.lastTime = time;
     this.update(dt);
-    this.render();
-    requestAnimationFrame((t) => this.loop(t));
+    this.renderer.render(this.scene, this.camera);
+    requestAnimationFrame(t => this.loop(t));
   },
 
-  // ── UPDATE ───────────────────────────────────────────────
+  // ── UPDATE ────────────────────────────────────────────────
   update(dt) {
-    if (this.state.interactCooldown > 0) {
-      this.state.interactCooldown -= dt;
+    if (this.interactCooldown > 0) {
+      this.interactCooldown -= dt;
     }
 
-    if (!this.state.dialogueActive) {
+    if (!this.dialogueActive) {
       this.updatePlayer(dt);
     }
+
     this.updateCamera(dt);
+    this.updateNPCFacing();
+    this.updateInteractUI();
   },
 
-  // ── UPDATE PLAYER ────────────────────────────────────────
+  // ── PLAYER MOVEMENT ───────────────────────────────────────
   updatePlayer(dt) {
-    var s    = this.state;
-    var p    = s.player;
-    var keys = s.keys;
-    var joy  = s.joy;
+    const keys = this.keys;
+    let dx = 0;
+    let dz = 0;
 
-    // Gather input direction
-    var dx = 0;
-    var dy = 0;
+    // Keyboard input (world-space: W=north = -Z, S=south = +Z)
+    if (keys['w'] || keys['W'] || keys['ArrowUp'])    dz -= 1;
+    if (keys['s'] || keys['S'] || keys['ArrowDown'])  dz += 1;
+    if (keys['a'] || keys['A'] || keys['ArrowLeft'])  dx -= 1;
+    if (keys['d'] || keys['D'] || keys['ArrowRight']) dx += 1;
 
-    // Keyboard
-    if (keys['ArrowLeft']  || keys['KeyA']) dx -= 1;
-    if (keys['ArrowRight'] || keys['KeyD']) dx += 1;
-    if (keys['ArrowUp']    || keys['KeyW']) dy -= 1;
-    if (keys['ArrowDown']  || keys['KeyS']) dy += 1;
-
-    // Joystick
-    if (joy.active && joy.mag > 0.12) {
-      dx += Math.cos(joy.angle) * joy.mag;
-      dy += Math.sin(joy.angle) * joy.mag;
+    // Joystick input
+    if (this.joy.active && this.joy.mag > 0.1) {
+      dx += Math.cos(this.joy.angle) * this.joy.mag;
+      dz += Math.sin(this.joy.angle) * this.joy.mag;
     }
 
-    // Clamp to unit vector
-    var len = Math.sqrt(dx * dx + dy * dy);
+    // Normalize diagonal
+    const len = Math.sqrt(dx * dx + dz * dz);
     if (len > 1) {
       dx /= len;
-      dy /= len;
+      dz /= len;
     }
 
-    var moving = len > 0.05;
-    p.moving = moving;
+    const speed = this.player.speed;
+    const pos   = this.player.pos;
 
-    // Update direction
-    if (Math.abs(dx) > Math.abs(dy)) {
-      p.direction = dx > 0 ? 'east' : 'west';
-    } else if (dy !== 0) {
-      p.direction = dy > 0 ? 'south' : 'north';
-    }
+    if (len > 0.01) {
+      this.player.moving = true;
 
-    // Walk animation
-    if (moving) {
-      p.frameTimer += dt;
-      if (p.frameTimer >= 8) {
-        p.frameTimer = 0;
-        p.frame = (p.frame + 1) % 4;
+      // Try X movement
+      const newX = pos.x + dx * speed * dt;
+      if (!this.collidesAt(newX, pos.z)) {
+        pos.x = newX;
       }
+
+      // Try Z movement
+      const newZ = pos.z + dz * speed * dt;
+      if (!this.collidesAt(pos.x, newZ)) {
+        pos.z = newZ;
+      }
+
+      // Facing angle — smooth rotation
+      const targetAngle = Math.atan2(dx, dz);
+      let diff = targetAngle - this.player.facingAngle;
+      // Wrap to -PI..PI
+      while (diff >  Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      this.player.facingAngle += diff * 0.18;
+      this.playerGroup.rotation.y = this.player.facingAngle;
+
+      // Walk bob
+      this.player.animTime += dt * 8;
+      this.playerGroup.position.y = Math.abs(Math.sin(this.player.animTime)) * 0.06;
+
     } else {
-      p.frame = 0;
-      p.frameTimer = 0;
+      this.player.moving = false;
+
+      // Breathing idle
+      this.player.animTime += dt * 1.5;
+      this.playerGroup.position.y = Math.sin(this.player.animTime) * 0.012;
     }
 
-    // Move with separate X/Y collision
-    var speed = PLAYER_SPEED * dt;
-    var nx = p.x + dx * speed;
-    var ny = p.y + dy * speed;
+    // Sync group position
+    this.playerGroup.position.x = pos.x;
+    this.playerGroup.position.z = pos.z;
 
-    // X axis
-    if (!this.collidesWithMap(nx, p.y, p.width, p.height)) {
-      p.x = nx;
-    }
-    // Y axis
-    if (!this.collidesWithMap(p.x, ny, p.width, p.height)) {
-      p.y = ny;
-    }
-
-    // Check south exit (trigger Damascus Road)
-    var mapH = MAP.length * TILE_SIZE;
-    if (p.y + p.height / 2 > mapH - TILE_SIZE * 0.8) {
+    // Check for Damascus Road trigger
+    if (this.hasLetters && pos.z > 20.5) {
       this.triggerDamascusRoad();
     }
   },
 
-  // ── COLLISION ────────────────────────────────────────────
-  collidesWithMap(cx, cy, w, h) {
-    var buf  = 2;
-    var left = cx - w / 2 + buf;
-    var right = cx + w / 2 - buf;
-    var top   = cy - h / 2 + buf;
-    var bot   = cy + h / 2 - buf;
+  // ── COLLISION ─────────────────────────────────────────────
+  collidesAt(x, z) {
+    const r = 0.45;
 
-    var corners = [
-      [left,  top],
-      [right, top],
-      [left,  bot],
-      [right, bot],
-    ];
+    // World border (sides)
+    if (x < -13.5 || x > 13.5) return true;
+    // North border
+    if (z < -23.5) return true;
+    // South gate — blocked until player has letters
+    if (z > 21.5 && !this.hasLetters) return true;
 
-    for (var i = 0; i < corners.length; i++) {
-      var wx = corners[i][0];
-      var wy = corners[i][1];
-      var tx = Math.floor(wx / TILE_SIZE);
-      var ty = Math.floor(wy / TILE_SIZE);
-
-      // Out of bounds = solid
-      if (ty < 0 || ty >= MAP.length || tx < 0 || tx >= MAP[0].length) {
+    // AABB colliders
+    for (const c of WORLD.colliders) {
+      if (x - r < c.maxX && x + r > c.minX &&
+          z - r < c.maxZ && z + r > c.minZ) {
         return true;
       }
-
-      var tile = MAP[ty][tx];
-
-      if (SOLID_TILES.has(tile)) return true;
-
-      // Gate is solid until player has letters
-      if (tile === T.GATE && !this.state.hasLetters) return true;
     }
+
     return false;
   },
 
-  // ── CAMERA ───────────────────────────────────────────────
+  // ── CAMERA ────────────────────────────────────────────────
   updateCamera(dt) {
-    var p    = this.state.player;
-    var cam  = this.state.cam;
-    var w    = this.canvas.width;
-    var h    = this.canvas.height;
+    const p = this.player.pos;
+    const targetX = p.x;
+    const targetY = this.cam.offsetY;
+    const targetZ = p.z + this.cam.offsetZ;
 
-    var targetX = p.x - w / 2;
-    var targetY = p.y - h / 2;
+    const k = 0.07;
+    this.cam.pos.x += (targetX - this.cam.pos.x) * k;
+    this.cam.pos.y += (targetY - this.cam.pos.y) * k;
+    this.cam.pos.z += (targetZ - this.cam.pos.z) * k;
 
-    cam.x += (targetX - cam.x) * CAM_LERP;
-    cam.y += (targetY - cam.y) * CAM_LERP;
-
-    this.clampCamera();
+    this.camera.position.copy(this.cam.pos);
+    this.camera.lookAt(p.x, 0.8, p.z - 1.5);
   },
 
-  clampCamera() {
-    var cam = this.state.cam;
-    var w   = this.canvas.width;
-    var h   = this.canvas.height;
-    var mapW = MAP[0].length * TILE_SIZE;
-    var mapH = MAP.length * TILE_SIZE;
+  // ── NPC FACING ────────────────────────────────────────────
+  updateNPCFacing() {
+    const px = this.player.pos.x;
+    const pz = this.player.pos.z;
 
-    cam.x = Math.max(0, Math.min(cam.x, mapW - w));
-    cam.y = Math.max(0, Math.min(cam.y, mapH - h));
+    for (const id in this.npcObjects) {
+      const obj = this.npcObjects[id];
+      const nx  = obj.group.position.x;
+      const nz  = obj.group.position.z;
+      const dx  = px - nx;
+      const dz  = pz - nz;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist < 6) {
+        const targetAngle = Math.atan2(dx, dz);
+        let diff = targetAngle - obj.group.rotation.y;
+        while (diff >  Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        obj.group.rotation.y += diff * 0.05;
+      }
+    }
   },
 
-  // ── INTERACT ─────────────────────────────────────────────
+  // ── INTERACT UI ───────────────────────────────────────────
+  updateInteractUI() {
+    if (this.dialogueActive) {
+      this.elInteractPrompt.classList.add('hidden');
+      return;
+    }
+
+    const nearest = this.findNearestNPC(3.5);
+    if (nearest) {
+      this.elInteractPrompt.textContent = '[E] Talk to ' + nearest.data.name;
+      this.elInteractPrompt.classList.remove('hidden');
+    } else {
+      this.elInteractPrompt.classList.add('hidden');
+    }
+  },
+
+  // ── FIND NEAREST NPC ──────────────────────────────────────
+  findNearestNPC(maxDist) {
+    const px = this.player.pos.x;
+    const pz = this.player.pos.z;
+    let nearest = null;
+    let nearestDist = maxDist;
+
+    for (const id in this.npcObjects) {
+      const obj = this.npcObjects[id];
+      const dx  = px - obj.group.position.x;
+      const dz  = pz - obj.group.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = obj;
+      }
+    }
+
+    return nearest;
+  },
+
+  // ── INTERACT ──────────────────────────────────────────────
   tryInteract() {
-    if (this.state.interactCooldown > 0) return;
-
-    if (this.state.dialogueActive) {
+    if (this.dialogueActive) {
       this.advanceDialogue();
       return;
     }
 
-    // Find nearest NPC within range
-    var p       = this.state.player;
-    var nearest = null;
-    var bestDist = 1.3 * TILE_SIZE;
+    if (this.interactCooldown > 0) return;
 
-    for (var i = 0; i < this.state.npcs.length; i++) {
-      var npc  = this.state.npcs[i];
-      var ddx  = npc.x - p.x;
-      var ddy  = npc.y - p.y;
-      var dist = Math.sqrt(ddx * ddx + ddy * ddy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        nearest  = npc;
-      }
-    }
+    const nearest = this.findNearestNPC(3.5);
+    if (!nearest) return;
 
-    if (nearest) {
-      this.startDialogue(nearest);
-    }
+    this.interactCooldown = 0.4;
+    this.startDialogue(nearest);
   },
 
-  // ── DIALOGUE ─────────────────────────────────────────────
-  startDialogue(npc) {
-    this.state.dialogueActive = true;
-    this.state.currentNPC     = npc;
-    this.state.dialogueQueue  = npc.dialogues;
-    this.state.dialogueIndex  = 0;
-    this.state.dialogueTyping = false;
+  // ── DIALOGUE ──────────────────────────────────────────────
+  startDialogue(npcObj) {
+    this.currentDialogueNPC = npcObj;
+    this.dialogueQueue      = npcObj.data.dialogues;
+    this.dialogueIndex      = 0;
+    this.dialogueActive     = true;
 
     this.elDialogueBox.classList.remove('hidden');
-
-    // On mobile, push dialogue box above interact button area
-    this.elDialogueBox.style.paddingBottom = '';
-
-    this.showDialogueLine(npc.dialogues[0]);
+    this.showDialogueLine(0);
   },
 
-  showDialogueLine(line) {
-    var self = this;
-    this.elDialogueSpeaker.textContent = line.speaker;
-    this.elDialogueText.textContent    = '';
-    this.state.dialogueText   = line.text;
-    this.state.dialogueTyping = true;
-
-    // Clear any existing timer
-    if (this.state.typeTimer) {
-      clearTimeout(this.state.typeTimer);
-      this.state.typeTimer = null;
+  showDialogueLine(index) {
+    if (index >= this.dialogueQueue.length) {
+      this.endDialogue();
+      return;
     }
 
-    var index   = 0;
-    var fullText = line.text;
+    const line = this.dialogueQueue[index];
+    this.elDialogueSpeaker.textContent = line.speaker;
 
-    function typeNext() {
-      if (index >= fullText.length) {
-        self.state.dialogueTyping = false;
+    // Clear previous
+    if (this.typeTimer) {
+      clearTimeout(this.typeTimer);
+      this.typeTimer = null;
+    }
+    this.elDialogueText.textContent = '';
+    this.dialogueTyping = true;
+    this.elDialoguePrompt.style.opacity = '0';
+
+    // Letter-by-letter typing
+    const fullText = line.text;
+    let charIdx    = 0;
+
+    const typeNext = () => {
+      if (charIdx >= fullText.length) {
+        this.dialogueTyping = false;
+        this.elDialoguePrompt.style.opacity = '';
         return;
       }
-      var ch = fullText[index];
-      self.elDialogueText.textContent += ch;
-      index++;
 
-      // Longer pause on punctuation
-      var delay = 22;
-      if (ch === '.' || ch === '!' || ch === '?' || ch === ',') {
-        delay = 60;
-      } else if (ch === '\u2014' || ch === ':') {
-        delay = 45;
-      }
+      this.elDialogueText.textContent += fullText[charIdx];
+      const ch = fullText[charIdx];
+      charIdx++;
 
-      self.state.typeTimer = setTimeout(typeNext, delay);
-    }
+      // Punctuation pause
+      let delay = 22;
+      if (ch === '.' || ch === '!' || ch === '?' || ch === '\u2014') delay = 70;
+      else if (ch === ',' || ch === ';') delay = 45;
+
+      this.typeTimer = setTimeout(typeNext, delay);
+    };
 
     typeNext();
   },
 
   advanceDialogue() {
-    var s = this.state;
-    if (!s.dialogueActive) return;
+    if (!this.dialogueActive) return;
 
-    // If still typing: skip to full text
-    if (s.dialogueTyping) {
-      if (s.typeTimer) {
-        clearTimeout(s.typeTimer);
-        s.typeTimer = null;
+    if (this.dialogueTyping) {
+      // Skip to full text
+      if (this.typeTimer) {
+        clearTimeout(this.typeTimer);
+        this.typeTimer = null;
       }
-      s.dialogueTyping = false;
-      this.elDialogueText.textContent = s.dialogueText;
+      const line = this.dialogueQueue[this.dialogueIndex];
+      this.elDialogueText.textContent = line.text;
+      this.dialogueTyping = false;
+      this.elDialoguePrompt.style.opacity = '';
       return;
     }
 
     // Advance to next line
-    s.dialogueIndex++;
-    if (s.dialogueIndex < s.dialogueQueue.length) {
-      this.showDialogueLine(s.dialogueQueue[s.dialogueIndex]);
-    } else {
+    this.dialogueIndex++;
+    if (this.dialogueIndex >= this.dialogueQueue.length) {
       this.endDialogue();
+    } else {
+      this.showDialogueLine(this.dialogueIndex);
     }
   },
 
   endDialogue() {
-    var s   = this.state;
-    var npc = s.currentNPC;
-
-    if (s.typeTimer) {
-      clearTimeout(s.typeTimer);
-      s.typeTimer = null;
+    if (this.typeTimer) {
+      clearTimeout(this.typeTimer);
+      this.typeTimer = null;
     }
 
-    s.dialogueActive  = false;
-    s.dialogueTyping  = false;
-    s.dialogueQueue   = [];
-    s.dialogueIndex   = 0;
-    s.interactCooldown = 30;
+    this.dialogueActive   = false;
+    this.dialogueTyping   = false;
 
     this.elDialogueBox.classList.add('hidden');
+    this.elDialogueText.textContent    = '';
+    this.elDialogueSpeaker.textContent = '';
 
-    // Trigger callback
-    if (npc && npc.onComplete === 'receive_letters') {
-      this.receiveLetters();
+    // Check for completion callback
+    if (this.currentDialogueNPC && this.currentDialogueNPC.data.onComplete) {
+      const cb = this.currentDialogueNPC.data.onComplete;
+      if (cb === 'receive_letters') {
+        this.receiveLetters();
+      }
     }
 
-    s.currentNPC = null;
+    this.currentDialogueNPC = null;
+    this.interactCooldown   = 0.5;
   },
 
-  // ── QUEST: RECEIVE LETTERS ───────────────────────────────
+  // ── RECEIVE LETTERS ───────────────────────────────────────
   receiveLetters() {
-    this.state.hasLetters = true;
+    this.hasLetters = true;
 
-    // Update quest tracker
-    this.elQuestText.textContent = 'Leave Jerusalem \u2014 head south through the gate';
+    // Update quest
+    this.elQuestText.textContent    = 'Leave Jerusalem \u2014 head south to Damascus';
+    this.elScriptureRef.textContent = 'Acts 9:3';
 
     // Show notification
-    this.elNotifText.textContent = '\ud83d\udcdc Letters Received!\nHead south to Damascus';
-    this.elNotification.classList.remove('hidden');
-
-    var self = this;
-    setTimeout(function() {
-      self.elNotification.classList.add('hidden');
-    }, 3000);
+    this.showNotification('\ud83d\udcdc Letters Received!\nHead south to Damascus');
   },
 
-  // ── DAMASCUS ROAD CUTSCENE ───────────────────────────────
-  triggerDamascusRoad() {
-    if (this.state.damascusTriggered) return;
-    this.state.damascusTriggered = true;
+  // ── NOTIFICATION ──────────────────────────────────────────
+  showNotification(text) {
+    this.elNotifText.textContent = text;
+    this.elNotification.classList.remove('hidden');
 
-    var self = this;
+    // Hide after 3.5s
+    setTimeout(() => {
+      this.elNotification.classList.add('hidden');
+    }, 3500);
+  },
+
+  // ── DAMASCUS ROAD CUTSCENE ────────────────────────────────
+  triggerDamascusRoad() {
+    if (this.damascusTriggered) return;
+    this.damascusTriggered = true;
 
     // Create fullscreen overlay
-    var overlay = document.createElement('div');
-    overlay.id  = 'damascus-overlay';
+    const overlay = document.createElement('div');
     overlay.style.cssText = [
-      'position: fixed',
-      'top: 0',
-      'left: 0',
-      'width: 100%',
-      'height: 100%',
-      'background: rgba(0,0,0,0)',
-      'z-index: 100',
-      'display: flex',
-      'flex-direction: column',
-      'align-items: center',
-      'justify-content: center',
-      'padding: 40px',
-      'transition: background 1s ease',
-      'pointer-events: none',
+      'position:fixed',
+      'inset:0',
+      'z-index:100',
+      'background:rgba(0,0,0,0)',
+      'display:flex',
+      'flex-direction:column',
+      'align-items:center',
+      'justify-content:center',
+      'transition:background 1.5s ease',
+      'font-family:Cinzel,serif',
+      'text-align:center',
+      'padding:40px',
     ].join(';');
-
-    var textEl = document.createElement('div');
-    textEl.style.cssText = [
-      'font-family: "Crimson Text", Georgia, serif',
-      'font-size: 20px',
-      'color: #f5ecd0',
-      'text-align: center',
-      'line-height: 1.7',
-      'max-width: 500px',
-      'opacity: 0',
-      'transition: opacity 0.8s ease',
-    ].join(';');
-    overlay.appendChild(textEl);
     document.body.appendChild(overlay);
 
     // Fade to black
-    setTimeout(function() {
+    requestAnimationFrame(() => {
       overlay.style.background = 'rgba(0,0,0,1)';
-    }, 50);
+    });
 
-    // Show first text at 1s
-    setTimeout(function() {
-      textEl.style.opacity = '1';
-      textEl.innerHTML = '\u26a1 Suddenly a blinding light from heaven flashed around Saul...';
-    }, 1000);
+    // First title
+    const title = document.createElement('div');
+    title.textContent = 'The Road to Damascus';
+    title.style.cssText = [
+      'color:#c9a84c',
+      'font-size:clamp(1.4rem,4vw,2.2rem)',
+      'font-weight:700',
+      'letter-spacing:0.1em',
+      'opacity:0',
+      'transition:opacity 1.2s ease',
+      'margin-bottom:28px',
+      'text-shadow:0 0 20px rgba(201,168,76,0.7)',
+    ].join(';');
+    overlay.appendChild(title);
 
-    // Show second text at 3s
-    setTimeout(function() {
-      textEl.style.opacity = '0';
-      setTimeout(function() {
-        textEl.innerHTML = '"And falling to the ground, he heard a voice saying to him,<br><em>\'Saul, Saul, why are you persecuting me?\'</em>"<br><br><span style="font-family:\'Cinzel\',serif;font-size:13px;color:#c9a84c;letter-spacing:0.1em;">\u2014 Acts 9:4</span>';
-        textEl.style.opacity = '1';
-      }, 800);
-    }, 3000);
+    // Quote
+    const quote = document.createElement('div');
+    quote.textContent = '"And as he journeyed, he came near Damascus: and suddenly there shined round about him a light from heaven." \u2014 Acts 9:3';
+    quote.style.cssText = [
+      'font-family:Crimson Text,Georgia,serif',
+      'font-style:italic',
+      'color:#f0e0b0',
+      'font-size:clamp(1rem,2.5vw,1.3rem)',
+      'max-width:560px',
+      'line-height:1.7',
+      'opacity:0',
+      'transition:opacity 1.5s ease',
+    ].join(';');
+    overlay.appendChild(quote);
 
-    // Show coming soon text at 7s
-    setTimeout(function() {
-      textEl.style.opacity = '0';
-      setTimeout(function() {
-        textEl.innerHTML = '<span style="font-family:\'Cinzel\',serif;font-size:18px;color:#f0c040;letter-spacing:0.06em;">The Damascus Road Awaits...</span><br><br><span style="font-size:15px;color:#c9a08a;font-style:italic;">[Coming Soon]</span>';
-        textEl.style.opacity = '1';
-      }, 800);
-    }, 7000);
+    // Show title after fade-to-black
+    setTimeout(() => {
+      title.style.opacity = '1';
+    }, 1600);
+
+    // Show quote
+    setTimeout(() => {
+      quote.style.opacity = '1';
+    }, 2800);
+
+    // Flash white — Damascus Road light
+    setTimeout(() => {
+      overlay.style.transition = 'background 0.15s ease';
+      overlay.style.background = 'rgba(255,255,255,1)';
+    }, 4000);
+
+    // Damascus Road revelation
+    setTimeout(() => {
+      // Clear overlay contents
+      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+
+      const flash = document.createElement('div');
+      flash.style.cssText = [
+        'display:flex',
+        'flex-direction:column',
+        'align-items:center',
+        'justify-content:center',
+        'gap:24px',
+        'opacity:0',
+        'transition:opacity 0.8s ease',
+      ].join(';');
+
+      const lightning = document.createElement('div');
+      lightning.textContent = '\u26a1 A LIGHT FROM HEAVEN \u26a1';
+      lightning.style.cssText = [
+        'font-family:Cinzel,serif',
+        'font-weight:700',
+        'font-size:clamp(1.2rem,3.5vw,2rem)',
+        'color:#1a0800',
+        'letter-spacing:0.12em',
+        'text-shadow:none',
+      ].join(';');
+      flash.appendChild(lightning);
+
+      const verse = document.createElement('div');
+      verse.textContent = '"Saul, Saul, why persecutest thou me?" \u2014 Acts 9:4';
+      verse.style.cssText = [
+        'font-family:Crimson Text,Georgia,serif',
+        'font-style:italic',
+        'font-size:clamp(1rem,2.5vw,1.3rem)',
+        'color:#2a0800',
+        'max-width:500px',
+        'line-height:1.7',
+        'text-align:center',
+      ].join(';');
+      flash.appendChild(verse);
+
+      overlay.appendChild(flash);
+
+      requestAnimationFrame(() => {
+        flash.style.opacity = '1';
+      });
+    }, 4200);
   },
-
-  // ── RENDER ───────────────────────────────────────────────
-  render() {
-    var ctx  = this.ctx;
-    var cam  = this.state.cam;
-    var w    = this.canvas.width;
-    var h    = this.canvas.height;
-
-    // Clear
-    ctx.fillStyle = '#0a0804';
-    ctx.fillRect(0, 0, w, h);
-
-    // World space
-    ctx.save();
-    ctx.translate(-cam.x, -cam.y);
-
-    this.renderTiles(ctx);
-    this.renderNPCs(ctx);
-    this.renderPlayer(ctx);
-
-    // Desktop interact hint (in world space above nearby NPC)
-    var p     = this.state.player;
-    var isDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    if (isDesktop && !this.state.dialogueActive) {
-      for (var i = 0; i < this.state.npcs.length; i++) {
-        var npc  = this.state.npcs[i];
-        var ddx  = npc.x - p.x;
-        var ddy  = npc.y - p.y;
-        var dist = Math.sqrt(ddx * ddx + ddy * ddy);
-        if (dist < 1.3 * TILE_SIZE) {
-          ctx.save();
-          ctx.font = '11px Cinzel, serif';
-          ctx.fillStyle = 'rgba(240,192,64,0.9)';
-          ctx.textAlign = 'center';
-          var labelX = npc.x;
-          var labelY = npc.y - TILE_SIZE * 0.9;
-          // Background pill
-          var tw = ctx.measureText('[E] Talk').width;
-          ctx.fillStyle = 'rgba(8,5,2,0.82)';
-          ctx.beginPath();
-          ctx.roundRect(labelX - tw / 2 - 7, labelY - 14, tw + 14, 18, 4);
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(201,168,76,0.7)';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          ctx.fillStyle = '#f0c040';
-          ctx.fillText('[E] Talk', labelX, labelY);
-          ctx.restore();
-        }
-      }
-    }
-
-    ctx.restore();
-  },
-
-  // ── RENDER TILES ─────────────────────────────────────────
-  renderTiles(ctx) {
-    var cam    = this.state.cam;
-    var startX = Math.max(0, Math.floor(cam.x / TILE_SIZE));
-    var startY = Math.max(0, Math.floor(cam.y / TILE_SIZE));
-    var endX   = Math.min(MAP[0].length - 1, Math.ceil((cam.x + this.canvas.width)  / TILE_SIZE));
-    var endY   = Math.min(MAP.length    - 1, Math.ceil((cam.y + this.canvas.height) / TILE_SIZE));
-
-    for (var ty = startY; ty <= endY; ty++) {
-      for (var tx = startX; tx <= endX; tx++) {
-        var tile = MAP[ty][tx];
-        var px   = tx * TILE_SIZE;
-        var py   = ty * TILE_SIZE;
-        this.drawTile(ctx, tile, px, py, tx, ty);
-      }
-    }
-  },
-
-  // ── DRAW TILE ────────────────────────────────────────────
-  drawTile(ctx, tile, px, py, tx, ty) {
-    var S  = TILE_SIZE;
-    var S2 = S / 2;
-    var c  = TILE_COLORS[tile] || TILE_COLORS[T.SAND];
-
-    switch (tile) {
-
-      case T.SAND: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Subtle grain marks (deterministic)
-        ctx.fillStyle = c.dark;
-        ctx.globalAlpha = 0.25;
-        for (var i = 0; i < 4; i++) {
-          var gx = px + ((tx * 7 + ty * 13 + i * 11) % (S - 4));
-          var gy = py + ((tx * 11 + ty * 7 + i * 17) % (S - 4));
-          ctx.fillRect(gx, gy, 2, 1);
-        }
-        ctx.globalAlpha = 1;
-        break;
-      }
-
-      case T.WALL: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Brick pattern
-        ctx.strokeStyle = c.dark;
-        ctx.lineWidth   = 1;
-        // Horizontal mortar line in middle
-        ctx.beginPath();
-        ctx.moveTo(px, py + S2);
-        ctx.lineTo(px + S, py + S2);
-        ctx.stroke();
-        // Top half bricks (offset by ty%2)
-        var offTop = (ty % 2 === 0) ? 0 : S2;
-        ctx.beginPath();
-        ctx.moveTo(px + offTop, py);
-        ctx.lineTo(px + offTop, py + S2);
-        if (offTop + S2 <= S) {
-          ctx.moveTo(px + offTop + S2, py);
-          ctx.lineTo(px + offTop + S2, py + S2);
-        }
-        // Bottom half bricks (opposite offset)
-        var offBot = (ty % 2 === 0) ? S2 : 0;
-        ctx.moveTo(px + offBot, py + S2);
-        ctx.lineTo(px + offBot, py + S);
-        if (offBot + S2 <= S) {
-          ctx.moveTo(px + offBot + S2, py + S2);
-          ctx.lineTo(px + offBot + S2, py + S);
-        }
-        ctx.stroke();
-        break;
-      }
-
-      case T.TEMPLE_WALL: {
-        ctx.fillStyle = c.light;
-        ctx.fillRect(px, py, S, S);
-        // Stone block lines
-        ctx.strokeStyle = c.dark;
-        ctx.lineWidth   = 1;
-        ctx.globalAlpha = 0.4;
-        ctx.strokeRect(px + 2, py + 2, S - 4, S2 - 2);
-        ctx.strokeRect(px + 2, py + S2, S - 4, S2 - 2);
-        ctx.globalAlpha = 1;
-        // Left/bottom shadow edge
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        ctx.fillRect(px, py, 3, S);
-        ctx.fillRect(px, py + S - 3, S, 3);
-        break;
-      }
-
-      case T.PATH: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Draw 2 rectangular stone blocks per tile
-        ctx.strokeStyle = c.dark;
-        ctx.lineWidth   = 1;
-        ctx.strokeRect(px + 2, py + 2, S2 - 3, S - 4);
-        ctx.strokeRect(px + S2 + 1, py + 2, S2 - 3, S - 4);
-        break;
-      }
-
-      case T.DOOR: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Two vertical planks
-        ctx.fillStyle = c.dark;
-        ctx.fillRect(px + 2,        py + 2, S2 - 4, S - 4);
-        ctx.fillRect(px + S2 + 2,   py + 2, S2 - 4, S - 4);
-        // Horizontal bar in middle
-        ctx.fillStyle = c.light;
-        ctx.fillRect(px + 2, py + S2 - 2, S - 4, 4);
-        // Metal fittings (circles)
-        ctx.fillStyle = '#8a7020';
-        ctx.beginPath();
-        ctx.arc(px + S2 - S / 6, py + S2, 3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(px + S2 + S / 6, py + S2, 3, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      }
-
-      case T.PALM: {
-        // Sand base
-        ctx.fillStyle = TILE_COLORS[T.SAND].base;
-        ctx.fillRect(px, py, S, S);
-        // Brown trunk
-        ctx.fillStyle = '#7a4010';
-        ctx.fillRect(px + S2 - 4, py + 16, 8, S - 16);
-        // Green fronds radiating from top
-        var frondColors = ['#2a7030', '#3a8040', '#226020'];
-        var fronds = [
-          [-14, -8], [14, -8], [0, -16], [-10, 2], [10, 2]
-        ];
-        for (var f = 0; f < fronds.length; f++) {
-          ctx.fillStyle = frondColors[f % frondColors.length];
-          ctx.beginPath();
-          ctx.ellipse(
-            px + S2 + fronds[f][0],
-            py + 14 + fronds[f][1],
-            10, 5,
-            Math.atan2(fronds[f][1], fronds[f][0]),
-            0, Math.PI * 2
-          );
-          ctx.fill();
-        }
-        break;
-      }
-
-      case T.STALL: {
-        // Sand base
-        ctx.fillStyle = TILE_COLORS[T.SAND].base;
-        ctx.fillRect(px, py, S, S);
-        // Wooden table frame
-        ctx.fillStyle = '#8b5030';
-        ctx.fillRect(px + 4, py + S2 - 2, S - 8, 4); // table top
-        ctx.fillRect(px + 4, py + S2 + 2, 4, S2 - 6); // left leg
-        ctx.fillRect(px + S - 8, py + S2 + 2, 4, S2 - 6); // right leg
-        // Colorful awning at top
-        var awningColor = STALL_COLORS[(tx + ty) % 4];
-        ctx.fillStyle = awningColor;
-        ctx.fillRect(px + 2, py + 2, S - 4, S2 - 4);
-        // Awning stripes (lighter)
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        for (var stripe = 0; stripe < 3; stripe++) {
-          ctx.fillRect(px + 6 + stripe * (S / 4 - 1), py + 2, 4, S2 - 4);
-        }
-        break;
-      }
-
-      case T.TEMPLE_FLOOR: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Grid lines every 24px (subtle)
-        ctx.strokeStyle = c.light;
-        ctx.lineWidth   = 0.5;
-        ctx.globalAlpha = 0.35;
-        ctx.beginPath();
-        ctx.moveTo(px + S2, py);
-        ctx.lineTo(px + S2, py + S);
-        ctx.moveTo(px, py + S2);
-        ctx.lineTo(px + S, py + S2);
-        ctx.stroke();
-        // Small diamond pattern in center
-        ctx.globalAlpha = 0.22;
-        ctx.fillStyle   = c.dark;
-        ctx.save();
-        ctx.translate(px + S2, py + S2);
-        ctx.rotate(Math.PI / 4);
-        ctx.fillRect(-4, -4, 8, 8);
-        ctx.restore();
-        ctx.globalAlpha = 1;
-        break;
-      }
-
-      case T.STEPS: {
-        // 4 horizontal step strips, each slightly lighter
-        var stepColors = [c.dark, c.base, '#d0c090', c.light];
-        for (var step = 0; step < 4; step++) {
-          ctx.fillStyle = stepColors[step];
-          ctx.fillRect(px, py + step * (S / 4), S, S / 4);
-        }
-        // Step edge shadows
-        ctx.fillStyle = 'rgba(0,0,0,0.18)';
-        for (var edge = 1; edge < 4; edge++) {
-          ctx.fillRect(px, py + edge * (S / 4) - 1, S, 2);
-        }
-        break;
-      }
-
-      case T.GATE: {
-        if (!this.state.hasLetters) {
-          // Dark iron gate (locked)
-          ctx.fillStyle = '#3a3020';
-          ctx.fillRect(px, py, S, S);
-          // 3 vertical iron bars
-          ctx.fillStyle = '#505050';
-          for (var bar = 0; bar < 3; bar++) {
-            ctx.fillRect(px + 8 + bar * 13, py + 2, 5, S - 4);
-          }
-          // 2 horizontal bands
-          ctx.fillStyle = '#404040';
-          ctx.fillRect(px + 2, py + S / 3 - 2, S - 4, 4);
-          ctx.fillRect(px + 2, py + (S * 2 / 3) - 2, S - 4, 4);
-          // Lock in center
-          ctx.fillStyle = '#c0a020';
-          ctx.beginPath();
-          ctx.arc(px + S2, py + S2, 5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#a08018';
-          ctx.fillRect(px + S2 - 4, py + S2, 8, 6);
-        } else {
-          // Open gate — earthy wooden frame
-          ctx.fillStyle = '#a07840';
-          ctx.fillRect(px, py, S, S);
-          ctx.fillStyle = '#c09050';
-          ctx.fillRect(px + 4, py + 2, 8, S - 4);
-          ctx.fillRect(px + S - 12, py + 2, 8, S - 4);
-          // Open center (dark passage)
-          ctx.fillStyle = '#1a1008';
-          ctx.fillRect(px + 14, py + 2, S - 28, S - 4);
-        }
-        break;
-      }
-
-      case T.ALTAR: {
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px, py, S, S);
-        // Stone base rectangle
-        ctx.fillStyle = c.dark;
-        ctx.fillRect(px + 8, py + S - 12, S - 16, 10);
-        // Column body
-        ctx.fillStyle = c.light;
-        ctx.beginPath();
-        ctx.roundRect(px + S2 - 7, py + 10, 14, S - 22, 3);
-        ctx.fill();
-        // Capital at top
-        ctx.fillStyle = c.base;
-        ctx.fillRect(px + S2 - 10, py + 6, 20, 6);
-        // Column lines (decorative)
-        ctx.strokeStyle = c.dark;
-        ctx.lineWidth   = 0.5;
-        ctx.globalAlpha = 0.4;
-        ctx.beginPath();
-        ctx.moveTo(px + S2 - 3, py + 16);
-        ctx.lineTo(px + S2 - 3, py + S - 14);
-        ctx.moveTo(px + S2 + 3, py + 16);
-        ctx.lineTo(px + S2 + 3, py + S - 14);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        break;
-      }
-
-      default: {
-        ctx.fillStyle = TILE_COLORS[T.SAND].base;
-        ctx.fillRect(px, py, S, S);
-        break;
-      }
-    }
-  },
-
-  // ── RENDER NPCs ──────────────────────────────────────────
-  renderNPCs(ctx) {
-    var p = this.state.player;
-    for (var i = 0; i < this.state.npcs.length; i++) {
-      var npc  = this.state.npcs[i];
-      var ddx  = npc.x - p.x;
-      var ddy  = npc.y - p.y;
-      var dist = Math.sqrt(ddx * ddx + ddy * ddy);
-
-      // Draw NPC character
-      this.drawCharacter(ctx, npc.x, npc.y, npc.bodyColor, npc.accentColor, npc.headColor, 'south', 0, false, npc.isHighPriest);
-
-      // Name label above NPC if close
-      if (dist < 1.5 * TILE_SIZE) {
-        ctx.save();
-        ctx.font        = 'bold 11px Cinzel, serif';
-        ctx.textAlign   = 'center';
-        ctx.textBaseline = 'bottom';
-        var labelText = npc.name;
-        var tw        = ctx.measureText(labelText).width;
-        var labelX    = npc.x;
-        var labelY    = npc.y - TILE_SIZE * 0.6;
-
-        // Background
-        ctx.fillStyle = 'rgba(8,5,2,0.82)';
-        ctx.beginPath();
-        ctx.roundRect(labelX - tw / 2 - 6, labelY - 14, tw + 12, 16, 3);
-        ctx.fill();
-
-        ctx.fillStyle = '#f0c040';
-        ctx.fillText(labelText, labelX, labelY);
-        ctx.restore();
-      }
-    }
-  },
-
-  // ── DRAW CHARACTER ───────────────────────────────────────
-  drawCharacter(ctx, x, y, bodyColor, accentColor, headColor, direction, frame, isPlayer, isHighPriest) {
-    ctx.save();
-
-    var bob = (frame === 1 || frame === 3) ? -1 : 0;
-
-    // Shadow ellipse
-    ctx.globalAlpha = 0.32;
-    ctx.fillStyle   = '#000';
-    ctx.beginPath();
-    ctx.ellipse(x, y + 11, 11, 5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Body (robe) — rounded rectangle, slightly wider at bottom
-    var bodyW  = isHighPriest ? 20 : 16;
-    var bodyH  = isHighPriest ? 28 : 24;
-    var bodyX  = x - bodyW / 2;
-    var bodyY  = y - bodyH / 2 + bob;
-
-    ctx.fillStyle = bodyColor;
-    ctx.beginPath();
-    ctx.roundRect(bodyX, bodyY, bodyW, bodyH, [4, 4, 6, 6]);
-    ctx.fill();
-
-    // Robe hem accent
-    ctx.fillStyle = accentColor;
-    ctx.globalAlpha = 0.6;
-    ctx.fillRect(bodyX, bodyY + bodyH - 5, bodyW, 5);
-    ctx.globalAlpha = 1;
-
-    // Collar accent
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(bodyX + 2, bodyY + 2, bodyW - 4, 3);
-
-    // Head
-    var headR = 8;
-    var headX = x;
-    var headY = bodyY - headR + 2 + bob;
-    ctx.fillStyle = headColor;
-    ctx.beginPath();
-    ctx.arc(headX, headY, headR, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (isHighPriest) {
-      // High Priest headpiece: white linen band with gold accent
-      ctx.fillStyle = '#f5f0e0';
-      ctx.fillRect(headX - headR, headY - headR + 1, headR * 2, 7);
-      ctx.fillStyle = accentColor;
-      ctx.fillRect(headX - headR, headY - headR + 1, headR * 2, 2);
-      ctx.fillRect(headX - 4, headY - headR - 2, 8, 4);
-    } else {
-      // Hair / headcloth (small dark shape)
-      ctx.fillStyle = isPlayer ? '#2a1a0a' : '#3a2a10';
-      ctx.beginPath();
-      ctx.arc(headX, headY - 3, headR - 1, Math.PI, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Simple directional indicator (darker side for direction)
-    if (direction === 'east') {
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(bodyX, bodyY, bodyW / 2, bodyH);
-    } else if (direction === 'west') {
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(bodyX + bodyW / 2, bodyY, bodyW / 2, bodyH);
-    } else if (direction === 'north') {
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fillRect(bodyX, bodyY + bodyH / 2, bodyW, bodyH / 2);
-    }
-
-    ctx.restore();
-  },
-
-  // ── RENDER PLAYER ────────────────────────────────────────
-  renderPlayer(ctx) {
-    var p = this.state.player;
-    this.drawCharacter(
-      ctx,
-      p.x, p.y,
-      '#5a4030',  // body: dark brown robe
-      '#c9a84c',  // accent: gold
-      '#c08050',  // head: warm skin
-      p.direction,
-      p.moving ? p.frame : 0,
-      true,
-      false
-    );
-  },
-
 };
 
-// ── BOOT ───────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function() {
+// ── STARTUP ───────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
   Game.init();
 });

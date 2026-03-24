@@ -68,6 +68,8 @@ const Game = {
   minigameActive:      false,
   horseObjects:        [],
   choiceActive:        false,
+  purchasedCloth:      false,
+  craftedTent:         false,
 
   // ── DOM REFS ──────────────────────────────────────────────
   elDialogueBox:    null,
@@ -245,6 +247,8 @@ const Game = {
 
     // Temple interior furnishings
     this.buildTempleInterior();
+    // Stable pen
+    this.buildStablePen();
   },
 
   addBuilding(b) {
@@ -464,7 +468,8 @@ const Game = {
   buildNPCs() {
     for (const npcData of WORLD.npcs) {
       const group = this.createNPCGroup(npcData);
-      group.position.set(npcData.x, 0, npcData.z);
+      const ny = this.getTerrainY(npcData.x, npcData.z);
+      group.position.set(npcData.x, ny, npcData.z);
       this.npcObjects[npcData.id] = { group: group, data: npcData };
       this.scene.add(group);
     }
@@ -873,6 +878,17 @@ const Game = {
     }
   },
 
+  // ── STATIC-ONLY COLLISION (for follower NPC pathfinding) ──
+  collidesAtStatic(x, z) {
+    const r = 0.35;
+    if (x < -37 || x > 37 || z < -27.5) return true;
+    for (const c of WORLD.colliders) {
+      if (x - r < c.maxX && x + r > c.minX &&
+          z - r < c.maxZ && z + r > c.minZ) return true;
+    }
+    return false;
+  },
+
   // ── COLLISION ─────────────────────────────────────────────
   collidesAt(x, z) {
     const r = 0.45;
@@ -1002,6 +1018,8 @@ const Game = {
     let nearestDist = maxDist;
 
     for (const id in this.npcObjects) {
+      // Recruited followers can't be talked to — they're marching with you
+      if (this.recruitedNPCs[id]) continue;
       const obj = this.npcObjects[id];
       const dx  = px - obj.group.position.x;
       const dz  = pz - obj.group.position.z;
@@ -1037,6 +1055,7 @@ const Game = {
 
   // ── INTERACT ──────────────────────────────────────────────
   tryInteract() {
+    if (this.minigameActive || this.choiceActive) return;
     if (this.dialogueActive) {
       this.advanceDialogue();
       return;
@@ -1092,10 +1111,14 @@ const Game = {
       dialogues = [{ speaker: 'Elias', text: '"Your four horses are in the pen and ready to ride. May God grant you a swift journey to Damascus."' }];
     } else if (id === 'stable_master' && this.inventory.shekels < 15) {
       dialogues = [{ speaker: 'Elias', text: '"Four horses for the Damascus road \u2014 that\'s 15 shekels. Come back when you have the coin. You can earn it making and selling tents."' }];
+    } else if (id === 'loom_keeper' && this.inventory.tents > 0 && this.inventory.tentCloth === 0) {
+      dialogues = [{ speaker: 'Benjamin', text: '"You already have a tent ready to sell! Take it north to Joseph the Merchant on the main road. He pays 5 shekels a tent."' }];
     } else if (id === 'loom_keeper' && this.inventory.tentCloth === 0) {
-      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave it into a fine tent. Find Miriam \u2014 she sells cloth on the main road north of the craftsmen\'s quarter. 2 shekels a bolt."' }];
+      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave it into a fine tent. Find Miriam \u2014 she sells cloth on the main road. 2 shekels a bolt."' }];
     } else if (id === 'joseph_buyer' && this.inventory.tents === 0) {
       dialogues = [{ speaker: 'Joseph', text: '"Do you have any tents to sell? I pay 5 shekels each. Bring me one and we have a deal."' }];
+    } else if (id === 'miriam_cloth' && this.purchasedCloth) {
+      dialogues = [{ speaker: 'Miriam', text: '"You already have your cloth! Take it south to Benjamin the Weaver in the craftsmen\'s quarter — he will make it into a fine tent."' }];
     } else if (id === 'miriam_cloth' && this.inventory.shekels < 2) {
       dialogues = [{ speaker: 'Miriam', text: '"Tent cloth is 2 shekels a bolt. Come back when you have the coin, friend."' }];
     }
@@ -1215,9 +1238,10 @@ const Game = {
             () => {
               this.inventory.shekels -= 2;
               this.inventory.tentCloth++;
+              this.purchasedCloth = true;
               this.updateInventoryHUD();
               this.updateSatchelHUD();
-              this.showNotification('Tent cloth purchased! (\u22122 shekels)\nBring it to Benjamin the Weaver.');
+              this.showNotification('Tent cloth purchased! (\u22122 shekels)\nBring it to Benjamin the Weaver\nin the craftsmen\'s quarter.');
             },
             () => {
               this.showNotification('Come back when you need cloth.');
@@ -1247,11 +1271,27 @@ const Game = {
 
       } else if (cb === 'sell_tent') {
         if (this.inventory.tents > 0) {
-          this.inventory.tents--;
-          this.inventory.shekels += 5;
-          this.updateInventoryHUD();
-          this.updateSatchelHUD();
-          this.showNotification('Tent sold for 5 shekels!\nTotal: ' + this.inventory.shekels + ' shekels.');
+          const tCount = this.inventory.tents;
+          const earned = tCount * 5;
+          this.showChoice(
+            'Sell ' + tCount + ' tent' + (tCount > 1 ? 's' : '') + ' for ' + earned + ' shekels?',
+            'Sell All (' + earned + '\u2609)',
+            'Sell 1 (5\u2609)',
+            () => {
+              this.inventory.shekels += earned;
+              this.inventory.tents    = 0;
+              this.updateInventoryHUD();
+              this.updateSatchelHUD();
+              this.showNotification('Sold ' + tCount + ' tent' + (tCount > 1 ? 's' : '') + ' for ' + earned + ' shekels!\nTotal: ' + this.inventory.shekels + ' shekels.');
+            },
+            () => {
+              this.inventory.tents--;
+              this.inventory.shekels += 5;
+              this.updateInventoryHUD();
+              this.updateSatchelHUD();
+              this.showNotification('Tent sold for 5 shekels!\nTotal: ' + this.inventory.shekels + ' shekels.');
+            }
+          );
         }
 
       } else if (cb === 'buy_horses') {
@@ -1552,129 +1592,237 @@ const Game = {
 
   // ── TEMPLE INTERIOR FURNISHINGS ───────────────────────────
   buildTempleInterior() {
-    const goldMat    = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.25, metalness: 0.8 });
-    const stoneMat   = new THREE.MeshStandardMaterial({ color: 0xd8d0a8, roughness: 0.85, metalness: 0 });
-    const darkMat    = new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.88, metalness: 0 });
-    const purpleMat  = new THREE.MeshStandardMaterial({ color: 0x6a308a, roughness: 0.88, metalness: 0 });
-    const flameMat   = new THREE.MeshStandardMaterial({ color: 0xffcc40, roughness: 0.1, metalness: 0,
-                         emissive: new THREE.Color(0xffaa20), emissiveIntensity: 1.8 });
+    const TF = 1.2; // temple platform floor height
+    const goldMat   = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.25, metalness: 0.8 });
+    const purpleMat = new THREE.MeshStandardMaterial({ color: 0x6a308a, roughness: 0.88, metalness: 0 });
+    const flameMat  = new THREE.MeshStandardMaterial({ color: 0xffcc40, roughness: 0.1, metalness: 0,
+                        emissive: new THREE.Color(0xffaa20), emissiveIntensity: 1.8 });
 
     // ── Veil / Curtain before the Holy of Holies ──────────
-    const veilGeo = new THREE.BoxGeometry(9, 5.5, 0.12);
+    const veilH   = 5.5;
+    const veilGeo = new THREE.BoxGeometry(9, veilH, 0.12);
     const veil    = new THREE.Mesh(veilGeo, purpleMat);
-    veil.position.set(0, 2.75, -21.0);
+    veil.position.set(0, TF + veilH / 2, -21.0);
     veil.castShadow = true;
     this.scene.add(veil);
-
-    // Gold trim on veil
-    const vtGeo = new THREE.BoxGeometry(9.1, 0.12, 0.14);
     const vtMat = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.2, metalness: 0.85 });
-    [0.06, 5.5].forEach(yv => {
+    const vtGeo = new THREE.BoxGeometry(9.1, 0.12, 0.14);
+    [TF + 0.06, TF + veilH].forEach(yv => {
       const vt = new THREE.Mesh(vtGeo, vtMat);
       vt.position.set(0, yv, -21.0);
       this.scene.add(vt);
     });
 
-    // ── Menorah (7-branch golden lampstand) ───────────────
-    // Base
-    const baseGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.12, 7);
-    const base    = new THREE.Mesh(baseGeo, goldMat);
-    base.position.set(0, 0.06, -16.5);
+    // ── Menorah (7-branch golden lampstand) — center of hall
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 0.12, 7), goldMat);
+    base.position.set(0, TF + 0.06, -16.5);
     this.scene.add(base);
 
-    // Central shaft
-    const shaftGeo = new THREE.CylinderGeometry(0.055, 0.075, 1.5, 6);
-    const shaft    = new THREE.Mesh(shaftGeo, goldMat);
-    shaft.position.set(0, 0.87, -16.5);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.075, 1.5, 6), goldMat);
+    shaft.position.set(0, TF + 0.87, -16.5);
     this.scene.add(shaft);
 
-    // 7 arms (3 left, center, 3 right)
     const armOffsets = [-0.84, -0.56, -0.28, 0, 0.28, 0.56, 0.84];
-    const armHeights = [ 0.85,  0.95,  1.08, 1.2, 1.08,  0.95,  0.85];
+    const armHeights = [ 0.85,  0.95,  1.08, 1.2, 1.08, 0.95, 0.85];
     for (let i = 0; i < 7; i++) {
-      if (i === 3) continue; // center is the shaft
-      const armGeo = new THREE.CylinderGeometry(0.035, 0.04, 0.38, 5);
-      const arm    = new THREE.Mesh(armGeo, goldMat);
-      arm.position.set(armOffsets[i], armHeights[i], -16.5);
+      if (i === 3) continue;
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.38, 5), goldMat);
+      arm.position.set(armOffsets[i], TF + armHeights[i], -16.5);
       this.scene.add(arm);
     }
-
-    // 7 candles + flames
     for (let i = 0; i < 7; i++) {
-      const candleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 5);
-      const candle    = new THREE.Mesh(candleGeo, new THREE.MeshStandardMaterial({ color: 0xf5edd0, roughness: 0.9 }));
-      candle.position.set(armOffsets[i], armHeights[i] + 0.28, -16.5);
+      const candleMat = new THREE.MeshStandardMaterial({ color: 0xf5edd0, roughness: 0.9 });
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.18, 5), candleMat);
+      candle.position.set(armOffsets[i], TF + armHeights[i] + 0.28, -16.5);
       this.scene.add(candle);
-
-      const flameGeo = new THREE.ConeGeometry(0.04, 0.12, 5);
-      const flame    = new THREE.Mesh(flameGeo, flameMat);
-      flame.position.set(armOffsets[i], armHeights[i] + 0.46, -16.5);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 5), flameMat);
+      flame.position.set(armOffsets[i], TF + armHeights[i] + 0.46, -16.5);
       this.scene.add(flame);
     }
 
-    // ── Table of Showbread ────────────────────────────────
-    const tableTopGeo = new THREE.BoxGeometry(1.0, 0.08, 0.55);
-    const tableTop    = new THREE.Mesh(tableTopGeo, goldMat);
-    tableTop.position.set(-4.5, 0.88, -16.5);
+    // ── Table of Showbread (north wall, left side) ────────
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.55), goldMat);
+    tableTop.position.set(-4.5, TF + 0.88, -16.5);
     this.scene.add(tableTop);
-    const tableLegGeo = new THREE.BoxGeometry(0.08, 0.85, 0.08);
-    [[-0.44, -0.22], [0.44, -0.22], [-0.44, 0.22], [0.44, 0.22]].forEach(([lx, lz]) => {
-      const leg = new THREE.Mesh(tableLegGeo, goldMat);
-      leg.position.set(-4.5 + lx, 0.425, -16.5 + lz);
+    [[-0.44,-0.22],[0.44,-0.22],[-0.44,0.22],[0.44,0.22]].forEach(([lx,lz]) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.85, 0.08), goldMat);
+      leg.position.set(-4.5 + lx, TF + 0.425, -16.5 + lz);
       this.scene.add(leg);
     });
-    // Bread loaves on table (12 small boxes for the 12 tribes)
     for (let i = 0; i < 6; i++) {
-      const breadGeo = new THREE.BoxGeometry(0.13, 0.07, 0.22);
       const breadMat = new THREE.MeshStandardMaterial({ color: 0xd4a060, roughness: 0.9 });
-      const bread    = new THREE.Mesh(breadGeo, breadMat);
-      bread.position.set(-4.75 + i * 0.2, 0.975, -16.5);
+      const bread = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.07, 0.22), breadMat);
+      bread.position.set(-4.75 + i * 0.2, TF + 0.975, -16.5);
       this.scene.add(bread);
     }
 
-    // ── Incense Altar (between menorah and veil) ──────────
-    const incGeo  = new THREE.BoxGeometry(0.55, 0.75, 0.55);
-    const incMesh = new THREE.Mesh(incGeo, goldMat);
-    incMesh.position.set(0, 0.375, -19.5);
+    // ── Incense Altar ─────────────────────────────────────
+    const incMesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.55), goldMat);
+    incMesh.position.set(0, TF + 0.375, -19.5);
     this.scene.add(incMesh);
-    // Incense smoke wisps (thin vertical boxes)
     const smokeMat = new THREE.MeshStandardMaterial({ color: 0xddd8cc, roughness: 0.9, transparent: true, opacity: 0.55 });
     [-0.06, 0, 0.06].forEach((sx, si) => {
-      const smokeGeo = new THREE.BoxGeometry(0.05, 0.5 + si * 0.1, 0.05);
-      const smoke    = new THREE.Mesh(smokeGeo, smokeMat);
-      smoke.position.set(sx, 1.05 + si * 0.05, -19.5 + sx * 0.5);
+      const smoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5 + si * 0.1, 0.05), smokeMat);
+      smoke.position.set(sx, TF + 0.8 + si * 0.05, -19.5 + sx * 0.5);
       this.scene.add(smoke);
+    });
+
+    // ── Ark of the Covenant (back, behind veil) ────────────
+    const arkMat = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.2, metalness: 0.85 });
+    const arkBox = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.7), arkMat);
+    arkBox.position.set(0, TF + 0.35, -22.0);
+    this.scene.add(arkBox);
+    // Mercy seat / cherubim wings (simplified as wing shapes)
+    [-0.45, 0.45].forEach(wx => {
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.08, 0.55), arkMat);
+      wing.position.set(wx, TF + 0.76, -22.0);
+      wing.rotation.z = wx > 0 ? 0.4 : -0.4;
+      this.scene.add(wing);
     });
 
     // ── Decorated floor tiles inside temple ───────────────
     const tileColors = [0xd8d0a0, 0xc8c090];
     for (let tx = -4; tx <= 4; tx += 2) {
       for (let tz = -12; tz >= -21; tz -= 2) {
-        const tileGeo = new THREE.BoxGeometry(1.95, 0.04, 1.95);
         const col     = ((tx + tz) % 2 === 0) ? tileColors[0] : tileColors[1];
         const tileMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7 });
-        const tile    = new THREE.Mesh(tileGeo, tileMat);
-        tile.position.set(tx, 1.22, tz);
+        const tile    = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.04, 1.95), tileMat);
+        tile.position.set(tx, TF + 0.02, tz);
         tile.receiveShadow = true;
         this.scene.add(tile);
       }
     }
 
-    // ── Two large urns flanking entrance ─────────────────
-    const urnColors = [0xc09050, 0xa07040];
-    [[-2.5, -13.2], [2.5, -13.2]].forEach(([ux, uz], ui) => {
-      const urnGeo = new THREE.CylinderGeometry(0.22, 0.15, 0.65, 7);
-      const urnMat = new THREE.MeshStandardMaterial({ color: urnColors[ui % 2], roughness: 0.85 });
-      const urn    = new THREE.Mesh(urnGeo, urnMat);
-      urn.position.set(ux, 1.545, uz);
+    // ── Entrance urns ─────────────────────────────────────
+    [[-2.5,-13.2],[2.5,-13.2]].forEach(([ux,uz], ui) => {
+      const urnMat = new THREE.MeshStandardMaterial({ color: ui === 0 ? 0xc09050 : 0xa07040, roughness: 0.85 });
+      const urn    = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.15, 0.65, 7), urnMat);
+      urn.position.set(ux, TF + 0.325, uz);
       urn.castShadow = true;
       this.scene.add(urn);
     });
 
-    // ── Warm interior point light (menorah glow) ──────────
-    const menorahLight = new THREE.PointLight(0xffcc60, 1.8, 14);
-    menorahLight.position.set(0, 2.8, -16.5);
+    // ── Menorah warm glow ────────────────────────────────
+    const menorahLight = new THREE.PointLight(0xffcc60, 2.0, 16);
+    menorahLight.position.set(0, TF + 2.8, -16.5);
     this.scene.add(menorahLight);
+  },
+
+  // ── STABLE PEN ────────────────────────────────────────────
+  buildStablePen() {
+    const woodMat  = new THREE.MeshStandardMaterial({ color: 0x6a4a20, roughness: 0.9 });
+    const strawMat = new THREE.MeshStandardMaterial({ color: 0xc8a840, roughness: 0.95 });
+    const dirtMat  = new THREE.MeshStandardMaterial({ color: 0x8a6a40, roughness: 0.95 });
+
+    // Dirt floor of pen
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(10, 0.05, 8), dirtMat);
+    floor.position.set(22, 0.025, 45);
+    floor.receiveShadow = true;
+    this.scene.add(floor);
+
+    // Straw bedding patches
+    [[20, 44], [24, 46], [21, 48]].forEach(([sx, sz]) => {
+      const straw = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 1.2), strawMat);
+      straw.position.set(sx, 0.06, sz);
+      this.scene.add(straw);
+    });
+
+    // Fence posts (0.15 x 1.4 x 0.15) — north fence
+    for (let fx = 17; fx <= 27; fx += 2) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), woodMat);
+      post.position.set(fx, 0.7, 41);
+      post.castShadow = true;
+      this.scene.add(post);
+    }
+    // South fence
+    for (let fx = 17; fx <= 27; fx += 2) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), woodMat);
+      post.position.set(fx, 0.7, 49);
+      post.castShadow = true;
+      this.scene.add(post);
+    }
+    // East fence
+    for (let fz = 41; fz <= 49; fz += 2) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), woodMat);
+      post.position.set(27, 0.7, fz);
+      post.castShadow = true;
+      this.scene.add(post);
+    }
+    // West fence (split — gate gap at z:44-46)
+    [41, 43].forEach(fz => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), woodMat);
+      post.position.set(17, 0.7, fz);
+      this.scene.add(post);
+    });
+    [47, 49].forEach(fz => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.4, 0.15), woodMat);
+      post.position.set(17, 0.7, fz);
+      this.scene.add(post);
+    });
+
+    // Horizontal rails — 2 rails per fence side
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x7a5a28, roughness: 0.88 });
+    // North + south rails
+    [41, 49].forEach(rz => {
+      [0.5, 1.0].forEach(ry => {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(10, 0.1, 0.1), railMat);
+        rail.position.set(22, ry, rz);
+        this.scene.add(rail);
+      });
+    });
+    // East rail
+    [0.5, 1.0].forEach(ry => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 8), railMat);
+      rail.position.set(27, ry, 45);
+      this.scene.add(rail);
+    });
+    // West rails (north+south segments around gate gap)
+    [[41, 43], [47, 49]].forEach(([z1, z2]) => {
+      [0.5, 1.0].forEach(ry => {
+        const d = z2 - z1;
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, d), railMat);
+        rail.position.set(17, ry, (z1 + z2) / 2);
+        this.scene.add(rail);
+      });
+    });
+
+    // 3 decorative horses inside pen (always visible)
+    [[20, 43.5, 0.3], [23, 46, -0.4], [25, 44, 0.1]].forEach(([hx, hz, ry]) => {
+      const hGroup = new THREE.Group();
+      const brMat  = new THREE.MeshStandardMaterial({ color: 0x7a3a10, roughness: 0.9 });
+      const dkMat  = new THREE.MeshStandardMaterial({ color: 0x3a1a05, roughness: 0.9 });
+      const body   = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.42, 1.05), brMat);
+      body.position.y = 0.7;
+      hGroup.add(body);
+      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.42, 0.2), brMat);
+      neck.position.set(0, 0.96, -0.4);
+      hGroup.add(neck);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.36), brMat);
+      head.position.set(0, 1.18, -0.56);
+      hGroup.add(head);
+      [[-0.18,-0.38],[0.18,-0.38],[-0.18,0.38],[0.18,0.38]].forEach(([lx,lz]) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.46, 0.1), dkMat);
+        leg.position.set(lx, 0.25, lz);
+        hGroup.add(leg);
+      });
+      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.26, 0.07), dkMat);
+      tail.position.set(0, 0.76, 0.55);
+      tail.rotation.x = 0.5;
+      hGroup.add(tail);
+      hGroup.position.set(hx, 0, hz);
+      hGroup.rotation.y = ry;
+      this.scene.add(hGroup);
+    });
+
+    // Water trough
+    const troughMat = new THREE.MeshStandardMaterial({ color: 0x6a5030, roughness: 0.88 });
+    const waterMat  = new THREE.MeshStandardMaterial({ color: 0x4878a0, roughness: 0.2 });
+    const trough = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.4), troughMat);
+    trough.position.set(26, 0.175, 43);
+    this.scene.add(trough);
+    const water = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.22), waterMat);
+    water.position.set(26, 0.32, 43);
+    this.scene.add(water);
   },
 
   // ── FOLLOWERS (recruited soldiers) ────────────────────────
@@ -1683,8 +1831,8 @@ const Game = {
     const px = this.player.pos.x;
     const pz = this.player.pos.z;
     const followerIds = ['barnabas', 'lucius', 'silas', 'manaen'];
-    // Offset behind player, spread out
-    const offsets = [[-1.8, 2.2], [1.8, 2.2], [-2.8, 4.0], [2.8, 4.0]];
+    // Tighter offset — form up close behind player
+    const offsets = [[-0.85, 1.3], [0.85, 1.3], [-1.6, 2.4], [1.6, 2.4]];
 
     for (let i = 0; i < followerIds.length; i++) {
       const id = followerIds[i];
@@ -1698,10 +1846,20 @@ const Game = {
       const dz = targetZ - npc.group.position.z;
       const dist = Math.sqrt(dx * dx + dz * dz);
 
-      if (dist > 0.12) {
-        const spd = Math.min(dist * 4.5, this.player.speed * 1.15);
-        npc.group.position.x += (dx / dist) * spd * dt;
-        npc.group.position.z += (dz / dist) * spd * dt;
+      if (dist > 0.1) {
+        const spd = Math.min(dist * 5, this.player.speed * 1.2);
+        const nx  = npc.group.position.x + (dx / dist) * spd * dt;
+        const nz  = npc.group.position.z + (dz / dist) * spd * dt;
+
+        // Wall avoidance: try full move, then slide on each axis
+        if (!this.collidesAtStatic(nx, nz)) {
+          npc.group.position.x = nx;
+          npc.group.position.z = nz;
+        } else if (!this.collidesAtStatic(nx, npc.group.position.z)) {
+          npc.group.position.x = nx;
+        } else if (!this.collidesAtStatic(npc.group.position.x, nz)) {
+          npc.group.position.z = nz;
+        }
         npc.group.position.y = this.getTerrainY(npc.group.position.x, npc.group.position.z);
         npc.group.rotation.y = Math.atan2(dx, dz);
       }

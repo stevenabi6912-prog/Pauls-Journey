@@ -250,7 +250,7 @@ var WORLD = {
     },
     {
       id: 'loom_keeper', name: 'Benjamin the Weaver',
-      x: 13, z: 36,
+      x: 9, z: 37,
       trueName: 'Benjamin',
       bodyColor: 0x506870, accentColor: 0x8098a8, headColor: 0xb07840,
       dialogues: [
@@ -271,7 +271,7 @@ var WORLD = {
     },
     {
       id: 'stable_master', name: 'Elias the Stable Master',
-      x: 21, z: 45,
+      x: 20, z: 44,
       bodyColor: 0x4a5040, accentColor: 0x7a8070, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Elias', text: '"Fine horses for the Damascus road! I have four strong animals ready. They are well-fed and rested."' },
@@ -345,7 +345,6 @@ var WORLD = {
     { x: 20,  z: 27,  w: 5, d: 4, h: 3.2, color: 0xa06840, roofColor: 0x7a4020 },
     { x: 26,  z: 27,  w: 5, d: 4, h: 2.8, color: 0x8a5838, roofColor: 0x6a3818 },
     { x: 19,  z: 33,  w: 5, d: 4, h: 3.0, color: 0x9a6035, roofColor: 0x7a3818 },
-    { x: 22,  z: 43,  w: 5, d: 4, h: 2.8, color: 0xa06440, roofColor: 0x7a3820 },
 
     // ── Central well (off road, beside main path) ───────────
     { x: 5.5, z: 19, w: 1.6, d: 1.6, h: 0.85, color: 0x7a5a30 },
@@ -356,12 +355,10 @@ var WORLD = {
     // ── Craftsmen's quarter ─────────────────────────────────
     { x:  7, z: 33, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
     { x: -7, z: 33, w: 5, d: 4, h: 3.0, color: 0x6a5a38, roofColor: 0x4a3818 },
-    { x: 11, z: 40, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
+    { x: 8, z: 40, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
 
-    // ── Stable complex ──────────────────────────────────────
-    { x: 22, z: 45, w: 10, d: 8,  h: 3.0, color: 0x6a5040, roofColor: 0x4a3020 },
-    { x: 22, z: 37, w:  6, d: 4,  h: 2.5, color: 0x7a6050, roofColor: 0x5a4030 },
-    { x: 28, z: 45, w:  4, d: 8,  h: 1.5, color: 0x6a4020 },
+    // ── Stable hut (pen built in code) ──────────────────────
+    { x: 25, z: 37, w: 5, d: 4, h: 2.5, color: 0x7a6050, roofColor: 0x5a4030 },
 
     // ── South gate (moved to z:55) ──────────────────────────
     { x: -8, z: 55, w: 12, d: 1.5, h: 3.0, color: 0x6b4020 },
@@ -385,7 +382,7 @@ var WORLD = {
     { x: -12, z:  2 }, { x: 12, z:  2 },
     { x: -12, z: -2 }, { x: 12, z: -2 },
     { x: -11, z:  9 }, { x: 11, z:  9 },
-    { x: -13, z: 15 }, { x: 13, z: 15 },
+    { x: -17, z: 15 }, { x: 17, z: 15 },
     { x: -12, z: 20 }, { x: 12, z: 20 },
     { x: -16, z: 30 }, { x: 16, z: 30 },
     { x: -12, z: 40 }, { x: 12, z: 40 },
@@ -525,17 +522,18 @@ var WORLD = {
     { minX: 17.5, maxX: 22.5, minZ: 25,  maxZ: 29 },
     { minX: 23.5, maxX: 28.5, minZ: 25,  maxZ: 29 },
     { minX: 16.5, maxX: 21.5, minZ: 31,  maxZ: 35 },
-    { minX: 19.5, maxX: 24.5, minZ: 41,  maxZ: 45 },
 
     // ── Craftsmen's quarter ─────────────────────────────────
     { minX:  4,   maxX: 10,   minZ: 30.5, maxZ: 35.5 },
     { minX: -9.5, maxX: -4.5, minZ: 31,   maxZ: 35   },
-    { minX:  8.5, maxX: 13.5, minZ: 38,   maxZ: 42   },
+    { minX:  5.5, maxX: 10.5, minZ: 38,   maxZ: 42   },
 
-    // ── Stable ──────────────────────────────────────────────
-    { minX: 17, maxX: 27, minZ: 41, maxZ: 49 },
-    { minX: 19, maxX: 25, minZ: 35, maxZ: 39 },
-    { minX: 26, maxX: 30, minZ: 41, maxZ: 49 },
+    // ── Stable hut ──────────────────────────────────────────
+    { minX: 22.5, maxX: 27.5, minZ: 35, maxZ: 39 },
+    // Pen fence walls (north/south/east sides, west side open)
+    { minX: 17, maxX: 27, minZ: 41, maxZ: 41.4 },
+    { minX: 17, maxX: 27, minZ: 49, maxZ: 49.4 },
+    { minX: 26.6, maxX: 27, minZ: 41, maxZ: 49 },
 
     // ── South gate wall (moved to z:55) ─────────────────────
     { minX: -14, maxX:  -2, minZ: 54, maxZ: 57 },

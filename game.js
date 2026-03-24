@@ -24,11 +24,14 @@ const Game = {
   lampLights:  [],
 
   player: {
-    pos:        null,   // THREE.Vector3, set in init
-    speed:      6,      // units/second
-    moving:     false,
-    animTime:   0,
+    pos:         null,
+    speed:       6,
+    moving:      false,
+    animTime:    0,
     facingAngle: 0,
+    jumpY:       0,
+    jumpVel:     0,
+    isJumping:   false,
   },
 
   cam: {
@@ -48,10 +51,19 @@ const Game = {
   dialogueCallback: null,
   currentDialogueNPC: null,
 
-  hasLetters:         false,
-  damascusTriggered:  false,
-  interactCooldown:   0,
-  lastTime:           0,
+  hasLetters:          false,
+  gateUnlocked:        false,
+  templeInside:        false,
+  templeTransitioning: false,
+  damascusTriggered:   false,
+  interactCooldown:    0,
+  gateBlockCooldown:   0,
+  lastTime:            0,
+
+  companionsRecruited: 0,
+  horsesAcquired:      false,
+  recruitedNPCs:       {},
+  inventory:           { shekels: 5, tentCloth: 0, tents: 0 },
 
   // ── DOM REFS ──────────────────────────────────────────────
   elDialogueBox:    null,
@@ -81,7 +93,7 @@ const Game = {
     // Scene
     this.scene = new THREE.Scene();
     this.scene.background = null;
-    this.scene.fog = new THREE.Fog(0xe8d4a0, 38, 80);
+    this.scene.fog = new THREE.Fog(0xe8d4a0, 55, 140);
 
     // Camera
     const aspect = window.innerWidth / window.innerHeight;
@@ -162,10 +174,10 @@ const Game = {
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 2048;
     sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.left   = -35;
-    sun.shadow.camera.right  =  35;
-    sun.shadow.camera.top    =  35;
-    sun.shadow.camera.bottom = -35;
+    sun.shadow.camera.left   = -60;
+    sun.shadow.camera.right  =  60;
+    sun.shadow.camera.top    =  60;
+    sun.shadow.camera.bottom = -60;
     sun.shadow.camera.near   = 1;
     sun.shadow.camera.far    = 120;
     sun.shadow.bias = -0.0008;
@@ -193,7 +205,7 @@ const Game = {
     su['sunPosition'].value.copy(sunDir);
 
     // Ground plane
-    const groundGeo = new THREE.PlaneGeometry(80, 80);
+    const groundGeo = new THREE.PlaneGeometry(200, 200);
     const groundMat = new THREE.MeshStandardMaterial({ color: 0xc4956a, roughness: 0.95, metalness: 0 });
     const ground    = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
@@ -587,9 +599,13 @@ const Game = {
     // Keyboard
     window.addEventListener('keydown', (e) => {
       this.keys[e.key] = true;
-      if (e.key === 'e' || e.key === 'E' || e.key === ' ') {
+      if (e.key === 'e' || e.key === 'E') {
         e.preventDefault();
         this.tryInteract();
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        this.tryJump();
       }
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) !== -1) {
         e.preventDefault();
@@ -611,6 +627,10 @@ const Game = {
     interactBtn.addEventListener('click', () => {
       this.tryInteract();
     });
+
+    // Jump button (mobile)
+    const jumpBtn = document.getElementById('jump-btn');
+    if (jumpBtn) jumpBtn.addEventListener('click', () => { this.tryJump(); });
 
     // Joystick
     this.setupJoystick();
@@ -683,11 +703,10 @@ const Game = {
 
   // ── UPDATE ────────────────────────────────────────────────
   update(dt) {
-    if (this.interactCooldown > 0) {
-      this.interactCooldown -= dt;
-    }
+    if (this.interactCooldown  > 0) this.interactCooldown  -= dt;
+    if (this.gateBlockCooldown > 0) this.gateBlockCooldown -= dt;
 
-    if (!this.dialogueActive) {
+    if (!this.dialogueActive && !this.templeTransitioning) {
       this.updatePlayer(dt);
     }
 
@@ -724,6 +743,17 @@ const Game = {
     const speed = this.player.speed;
     const pos   = this.player.pos;
 
+    // Jump physics
+    if (this.player.isJumping) {
+      this.player.jumpY   += this.player.jumpVel * dt;
+      this.player.jumpVel -= 22 * dt;
+      if (this.player.jumpY <= 0) {
+        this.player.jumpY   = 0;
+        this.player.jumpVel = 0;
+        this.player.isJumping = false;
+      }
+    }
+
     if (len > 0.01) {
       this.player.moving = true;
 
@@ -737,6 +767,14 @@ const Game = {
       const newZ = pos.z + dz * speed * dt;
       if (!this.collidesAt(pos.x, newZ)) {
         pos.z = newZ;
+      } else if (dz > 0 && newZ > 53.5 && !this.gateUnlocked && this.gateBlockCooldown <= 0) {
+        // Player walked into the south gate — show hint
+        this.gateBlockCooldown = 4;
+        if (!this.hasLetters) {
+          this.showNotification('The road is sealed.\nObtain letters from\nthe High Priest first.');
+        } else {
+          this.showNotification('Show your letters\nto the Gate Guard\nto pass.');
+        }
       }
 
       // Facing angle — smooth rotation
@@ -750,22 +788,32 @@ const Game = {
 
       // Walk bob
       this.player.animTime += dt * 8;
-      this.playerGroup.position.y = Math.abs(Math.sin(this.player.animTime)) * 0.06;
+      this.playerGroup.position.y = Math.abs(Math.sin(this.player.animTime)) * 0.06 + this.player.jumpY;
 
     } else {
       this.player.moving = false;
 
       // Breathing idle
       this.player.animTime += dt * 1.5;
-      this.playerGroup.position.y = Math.sin(this.player.animTime) * 0.012;
+      this.playerGroup.position.y = Math.sin(this.player.animTime) * 0.012 + this.player.jumpY;
     }
 
     // Sync group position
     this.playerGroup.position.x = pos.x;
     this.playerGroup.position.z = pos.z;
 
-    // Check for Damascus Road trigger
-    if (this.hasLetters && pos.z > 20.5) {
+    // Temple entry / exit transition
+    if (!this.templeTransitioning) {
+      const px = pos.x, pz = pos.z;
+      if (!this.templeInside && pz < -11.5 && Math.abs(px) < 1.3) {
+        this.enterTemple();
+      } else if (this.templeInside && pz > -11.5 && Math.abs(px) < 1.3) {
+        this.exitTemple();
+      }
+    }
+
+    // Check for Damascus Road trigger (only after gate guard unlocks it)
+    if (this.gateUnlocked && pos.z > 55.8) {
       this.triggerDamascusRoad();
     }
   },
@@ -774,19 +822,35 @@ const Game = {
   collidesAt(x, z) {
     const r = 0.45;
 
-    // World border (sides)
-    if (x < -13.5 || x > 13.5) return true;
-    // North border
-    if (z < -23.5) return true;
-    // South gate — blocked until player has letters
-    if (z > 21.5 && !this.hasLetters) return true;
+    // World border (sides + north)
+    if (x < -37 || x > 37) return true;
+    if (z < -27.5) return true;
+    // South gate — blocked until guard unlocks it
+    if (z > 54.5 && !this.gateUnlocked) return true;
 
-    // AABB colliders
+    // AABB scene colliders
     for (const c of WORLD.colliders) {
       if (x - r < c.maxX && x + r > c.minX &&
           z - r < c.maxZ && z + r > c.minZ) {
         return true;
       }
+    }
+
+    // NPC bodies (dynamic)
+    const nr2 = (r + 0.38) * (r + 0.38);
+    for (const id in this.npcObjects) {
+      const g  = this.npcObjects[id].group;
+      const dx = x - g.position.x;
+      const dz = z - g.position.z;
+      if (dx * dx + dz * dz < nr2) return true;
+    }
+
+    // Sign posts (dynamic)
+    const sr2 = (r + 0.1) * (r + 0.1);
+    for (const s of this.signObjects) {
+      const dx = x - s.group.position.x;
+      const dz = z - s.group.position.z;
+      if (dx * dx + dz * dz < sr2) return true;
     }
 
     return false;
@@ -796,8 +860,8 @@ const Game = {
   updateCamera(dt) {
     const p = this.player.pos;
     const targetX = p.x;
-    const targetY = this.cam.offsetY;
-    const targetZ = p.z + this.cam.offsetZ;
+    const targetY = this.templeInside ? 6.5 : this.cam.offsetY;
+    const targetZ = p.z + (this.templeInside ? 7.5 : this.cam.offsetZ);
 
     const k = 0.07;
     this.cam.pos.x += (targetX - this.cam.pos.x) * k;
@@ -936,9 +1000,33 @@ const Game = {
   // ── DIALOGUE ──────────────────────────────────────────────
   startDialogue(npcObj) {
     this.currentDialogueNPC = npcObj;
-    this.dialogueQueue      = npcObj.data.dialogues;
-    this.dialogueIndex      = 0;
-    this.dialogueActive     = true;
+    const id = npcObj.data.id;
+    let dialogues = npcObj.data.dialogues;
+
+    if (id === 'gate_guard') {
+      const allReady = this.hasLetters && this.companionsRecruited >= 4 && this.horsesAcquired;
+      if (allReady && npcObj.data.dialoguesAlt) {
+        dialogues = npcObj.data.dialoguesAlt;
+      } else if (this.hasLetters && npcObj.data.dialoguesMissing) {
+        dialogues = npcObj.data.dialoguesMissing;
+      }
+    } else if (npcObj.data.onComplete === 'recruit_companion' && this.recruitedNPCs[id]) {
+      dialogues = [{ speaker: npcObj.data.name, text: '"I am ready, Saul. We leave when you give the word."' }];
+    } else if (id === 'stable_master' && this.horsesAcquired) {
+      dialogues = [{ speaker: 'Elias', text: '"Your four horses are in the pen and ready to ride. May God grant you a swift journey to Damascus."' }];
+    } else if (id === 'stable_master' && this.inventory.shekels < 15) {
+      dialogues = [{ speaker: 'Elias', text: '"Four horses for the Damascus road \u2014 that\'s 15 shekels. Come back when you have the coin. You can earn it making and selling tents."' }];
+    } else if (id === 'loom_keeper' && this.inventory.tentCloth === 0) {
+      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave you a fine tent. See Miriam just up the road \u2014 she sells cloth for 2 shekels a bolt."' }];
+    } else if (id === 'joseph_buyer' && this.inventory.tents === 0) {
+      dialogues = [{ speaker: 'Joseph', text: '"Do you have any tents to sell? I pay 5 shekels each. Bring me one and we have a deal."' }];
+    } else if (id === 'miriam_cloth' && this.inventory.shekels < 2) {
+      dialogues = [{ speaker: 'Miriam', text: '"Tent cloth is 2 shekels a bolt. Come back when you have the coin, friend."' }];
+    }
+
+    this.dialogueQueue  = dialogues;
+    this.dialogueIndex  = 0;
+    this.dialogueActive = true;
 
     this.elDialogueBox.classList.remove('hidden');
     this.showDialogueLine(0);
@@ -1028,9 +1116,64 @@ const Game = {
 
     // Check for completion callback
     if (this.currentDialogueNPC && this.currentDialogueNPC.data.onComplete) {
-      const cb = this.currentDialogueNPC.data.onComplete;
+      const cb  = this.currentDialogueNPC.data.onComplete;
+      const nid = this.currentDialogueNPC.data.id;
+
       if (cb === 'receive_letters') {
         this.receiveLetters();
+
+      } else if (cb === 'recruit_companion' && !this.recruitedNPCs[nid]) {
+        this.recruitedNPCs[nid] = true;
+        this.companionsRecruited++;
+        this.showNotification('Companion ' + this.companionsRecruited + ' of 4 recruited!\n' + this.currentDialogueNPC.data.name + ' will join you.');
+        this.updateQuestProgress();
+
+      } else if (cb === 'buy_cloth') {
+        if (this.inventory.shekels >= 2) {
+          this.inventory.shekels -= 2;
+          this.inventory.tentCloth++;
+          this.updateInventoryHUD();
+          this.showNotification('Tent cloth purchased! (-2 shekels)\nBring it to Benjamin the Weaver.');
+        }
+
+      } else if (cb === 'craft_tent') {
+        if (this.inventory.tentCloth > 0) {
+          this.inventory.tentCloth--;
+          this.inventory.tents++;
+          this.updateInventoryHUD();
+          this.showNotification('Tent crafted!\nSell it to Joseph for 5 shekels.');
+        }
+
+      } else if (cb === 'sell_tent') {
+        if (this.inventory.tents > 0) {
+          this.inventory.tents--;
+          this.inventory.shekels += 5;
+          this.updateInventoryHUD();
+          this.showNotification('Tent sold for 5 shekels!\nTotal: ' + this.inventory.shekels + ' shekels.');
+        }
+
+      } else if (cb === 'buy_horses') {
+        if (!this.horsesAcquired && this.inventory.shekels >= 15) {
+          this.inventory.shekels -= 15;
+          this.horsesAcquired = true;
+          this.updateInventoryHUD();
+          this.updateQuestProgress();
+          this.showNotification('4 horses purchased!\nNow find your companions.');
+        } else if (!this.horsesAcquired) {
+          this.showNotification('Not enough shekels!\nNeed 15 to buy 4 horses.\nMake and sell tents to earn coin.');
+        }
+
+      } else if (cb === 'gate_open') {
+        const allReady = this.hasLetters && this.companionsRecruited >= 4 && this.horsesAcquired;
+        if (allReady) {
+          this.gateUnlocked = true;
+          if (this.npcObjects['gate_guard']) {
+            this.npcObjects['gate_guard'].group.position.x = 3.5;
+          }
+          this.elQuestText.textContent    = 'Head south \u2014 the road to Damascus awaits';
+          this.elScriptureRef.textContent = 'Acts 9:3';
+          this.showNotification('The gate opens!\nHead south to Damascus.');
+        }
       }
     }
 
@@ -1038,16 +1181,105 @@ const Game = {
     this.interactCooldown   = 0.5;
   },
 
+  // ── TEMPLE TRANSITIONS ────────────────────────────────────
+  _makeTransitionOverlay() {
+    const ov = document.createElement('div');
+    ov.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:50',
+      'background:rgba(0,0,0,0)', 'pointer-events:none',
+      'transition:background 0.32s ease',
+    ].join(';');
+    document.body.appendChild(ov);
+    return ov;
+  },
+
+  enterTemple() {
+    this.templeTransitioning = true;
+    this.templeInside        = true;
+
+    const ov = this._makeTransitionOverlay();
+    requestAnimationFrame(() => { ov.style.background = 'rgba(0,0,0,1)'; });
+
+    setTimeout(() => {
+      // Teleport player inside entrance
+      this.player.pos.set(0, 0, -13);
+      this.playerGroup.position.set(0, 0, -13);
+      // Snap camera to avoid lerp glitch
+      this.cam.pos.set(0, 6.5, -13 + 7.5);
+
+      document.getElementById('location-name').textContent = 'Holy Temple';
+      document.getElementById('scripture-ref').textContent = 'Acts 9:1';
+
+      ov.style.background = 'rgba(0,0,0,0)';
+      setTimeout(() => { ov.remove(); this.templeTransitioning = false; }, 340);
+    }, 340);
+  },
+
+  exitTemple() {
+    this.templeTransitioning = true;
+    this.templeInside        = false;
+
+    const ov = this._makeTransitionOverlay();
+    requestAnimationFrame(() => { ov.style.background = 'rgba(0,0,0,1)'; });
+
+    setTimeout(() => {
+      // Teleport player just outside temple
+      this.player.pos.set(0, 0, -9);
+      this.playerGroup.position.set(0, 0, -9);
+      this.cam.pos.set(0, 9, -9 + 12);
+
+      document.getElementById('location-name').textContent = 'Jerusalem';
+      document.getElementById('scripture-ref').textContent = 'Acts 9:1';
+
+      ov.style.background = 'rgba(0,0,0,0)';
+      setTimeout(() => { ov.remove(); this.templeTransitioning = false; }, 340);
+    }, 340);
+  },
+
+  // ── RECEIVE LETTERS ───────────────────────────────────────
+  // ── JUMP ──────────────────────────────────────────────────
+  tryJump() {
+    if (this.player.isJumping || this.dialogueActive || this.templeTransitioning) return;
+    this.player.isJumping = true;
+    this.player.jumpVel   = 7;
+  },
+
   // ── RECEIVE LETTERS ───────────────────────────────────────
   receiveLetters() {
     this.hasLetters = true;
 
-    // Update quest
-    this.elQuestText.textContent    = 'Leave Jerusalem \u2014 head south to Damascus';
-    this.elScriptureRef.textContent = 'Acts 9:3';
+    this.elQuestText.textContent    = 'Find 4 companions (0/4) & buy horses';
+    this.elScriptureRef.textContent = 'Acts 9:2';
 
-    // Show notification
-    this.showNotification('\ud83d\udcdc Letters Received!\nHead south to Damascus');
+    // Reveal satchel + shekel HUD
+    const satchel = document.getElementById('satchel-hud');
+    if (satchel) satchel.classList.remove('hidden');
+    this.updateInventoryHUD();
+
+    this.showNotification('\ud83d\udcdc Letters added to satchel!\nFind companions & buy horses\nto prepare for Damascus.');
+  },
+
+  // ── QUEST PROGRESS ────────────────────────────────────────
+  updateQuestProgress() {
+    if (!this.hasLetters) return;
+    const c = this.companionsRecruited;
+    const h = this.horsesAcquired;
+    if (c >= 4 && h) {
+      this.elQuestText.textContent    = 'Show letters to the Gate Guard';
+      this.elScriptureRef.textContent = 'Acts 9:2';
+    } else if (!h && c < 4) {
+      this.elQuestText.textContent = 'Find companions (' + c + '/4) & buy horses';
+    } else if (!h) {
+      this.elQuestText.textContent = 'Buy 4 horses from Elias the Stable Master';
+    } else {
+      this.elQuestText.textContent = 'Find companions (' + c + '/4) for the journey';
+    }
+  },
+
+  // ── INVENTORY HUD ─────────────────────────────────────────
+  updateInventoryHUD() {
+    const el = document.getElementById('shekel-count');
+    if (el) el.textContent = this.inventory.shekels;
   },
 
   // ── NOTIFICATION ──────────────────────────────────────────

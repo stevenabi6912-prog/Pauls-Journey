@@ -232,11 +232,13 @@ html, body {
 }
 
 #joystick-zone {
+  position: fixed;
+  left: 0;
+  top: 0;
   width: 50vw;
-  max-width: 200px;
-  height: 140px;
+  height: 100%;
+  z-index: 15;
   pointer-events: all;
-  position: relative;
 }
 
 #joystick-base {
@@ -265,10 +267,57 @@ html, body {
   pointer-events: none;
 }
 
+#action-buttons {
+  position: fixed;
+  bottom: 24px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 15;
+}
+
+#jump-btn {
+  pointer-events: all;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: rgba(100, 160, 201, 0.2);
+  border: 2px solid rgba(100, 180, 220, 0.8);
+  color: rgba(150, 210, 240, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  gap: 1px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 10px rgba(100, 180, 220, 0.2);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+#jump-btn:active {
+  transform: scale(0.9);
+  box-shadow: 0 0 18px rgba(100, 180, 220, 0.5);
+}
+
+#jump-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+#jump-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+}
+
 #interact-btn {
   pointer-events: all;
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   background: rgba(201, 168, 76, 0.2);
   border: 2px solid #c9a84c;
@@ -280,6 +329,7 @@ html, body {
   cursor: pointer;
   gap: 2px;
   outline: none;
+  z-index: 15;
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 0 12px rgba(201, 168, 76, 0.2);
   transition: transform 0.08s, box-shadow 0.08s;
@@ -306,9 +356,87 @@ html, body {
   #mobile-controls {
     display: none;
   }
+  #action-buttons {
+    display: none;
+  }
   #interact-btn {
     display: none;
   }
+}
+
+/* Mobile/touch: hide keyboard hint, use the Talk button instead */
+@media (hover: none) {
+  #interact-prompt {
+    display: none !important;
+  }
+}
+
+/* ── SHEKEL HUD ───────────────────────────────────────────── */
+#shekel-hud {
+  background: rgba(10, 6, 2, 0.82);
+  border: 1.5px solid rgba(201, 168, 76, 0.6);
+  border-radius: 6px;
+  padding: 6px 12px 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+
+#shekel-icon {
+  font-size: 0.85rem;
+  color: #c9a84c;
+}
+
+#shekel-count {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #c9a84c;
+}
+
+#shekel-label {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 0.75rem;
+  color: #a07830;
+  margin-top: 1px;
+}
+
+/* ── SATCHEL HUD ──────────────────────────────────────────── */
+#satchel-hud {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(10, 6, 2, 0.88);
+  border: 1.5px solid rgba(201, 168, 76, 0.7);
+  border-radius: 20px;
+  padding: 5px 16px 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.2);
+  animation: satchelAppear 0.4s ease forwards;
+}
+
+#satchel-icon {
+  font-size: 1rem;
+}
+
+#satchel-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.78rem;
+  color: #c9a84c;
+  letter-spacing: 0.05em;
+}
+
+@keyframes satchelAppear {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ── ANIMATIONS ───────────────────────────────────────────── */

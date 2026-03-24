@@ -16,6 +16,11 @@
       <div id="location-name">Jerusalem</div>
       <div id="scripture-ref">Acts 9:1</div>
     </div>
+    <div id="shekel-hud">
+      <span id="shekel-icon">&#9675;</span>
+      <span id="shekel-count">5</span>
+      <span id="shekel-label">shekels</span>
+    </div>
     <div id="quest-box">
       <div id="quest-label">QUEST</div>
       <div id="quest-text">Find the High Priest in the Temple</div>
@@ -24,6 +29,12 @@
 
   <!-- Interact prompt (desktop) -->
   <div id="interact-prompt" class="hidden">[E] Talk</div>
+
+  <!-- Satchel / inventory bar -->
+  <div id="satchel-hud" class="hidden">
+    <span id="satchel-icon">&#128220;</span>
+    <span id="satchel-label">Letters of Passage</span>
+  </div>
 
   <!-- Dialogue box -->
   <div id="dialogue-box" class="hidden">
@@ -50,10 +61,16 @@
         <div id="joystick-thumb"></div>
       </div>
     </div>
-    <button id="interact-btn">
-      <span id="btn-icon">&#9889;</span>
-      <span id="btn-label">Talk</span>
-    </button>
+    <div id="action-buttons">
+      <button id="jump-btn">
+        <span id="jump-icon">&#8679;</span>
+        <span id="jump-label">Jump</span>
+      </button>
+      <button id="interact-btn">
+        <span id="btn-icon">&#9889;</span>
+        <span id="btn-label">Talk</span>
+      </button>
+    </div>
   </div>
 
   <script src="scenes.js"></script>

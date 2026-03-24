@@ -48,6 +48,116 @@ var WORLD = {
       ],
       onComplete: null,
     },
+
+    // ── Stall Workers ──────────────────────────────────────
+    {
+      id: 'worker_figs',
+      name: 'Fig Seller',
+      x: -7, z: 1.8,
+      bodyColor: 0x7a5a30,
+      accentColor: 0xd4a860,
+      headColor: 0xb07840,
+      dialogues: [
+        { speaker: 'Fig Seller', text: '"Fresh figs from Jericho! Sweet dates from the Jordan valley! You look hungry, friend."' },
+        { speaker: 'Fig Seller', text: '"Business is slow today. Ever since Saul of Tarsus began rounding up the followers of The Way, people hurry home before sunset."' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'worker_cloth',
+      name: 'Cloth Merchant',
+      x: -4, z: 1.8,
+      bodyColor: 0x6a3060,
+      accentColor: 0xaa70a0,
+      headColor: 0xb07840,
+      dialogues: [
+        { speaker: 'Cloth Merchant', text: '"Fine linen from Egypt! Wool from the hills of Judea! Come, feel the quality!"' },
+        { speaker: 'Cloth Merchant', text: '"Traveling far? Take a good cloak \u2014 the road to Damascus is no short walk, friend."' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'worker_spice',
+      name: 'Spice Trader',
+      x: 7, z: 1.8,
+      bodyColor: 0x804020,
+      accentColor: 0xc07030,
+      headColor: 0xc09060,
+      dialogues: [
+        { speaker: 'Spice Trader', text: '"Cinnamon, myrrh, frankincense! The finest spices from Arabia and beyond!"' },
+        { speaker: 'Spice Trader', text: '"I heard a man named Stephen was stoned not long ago, right here in Jerusalem. A terrible business. The city has not been the same."' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'worker_pottery',
+      name: 'Potter',
+      x: 4, z: 5.8,
+      bodyColor: 0x8b5a20,
+      accentColor: 0xc08040,
+      headColor: 0xb07840,
+      dialogues: [
+        { speaker: 'Potter', text: '"I shape the clay as the LORD shapes us. Each vessel has its purpose. Here \u2014 feel how smooth this jar is."' },
+        { speaker: 'Potter', text: '"\"But now, O LORD, thou art our father; we are the clay, and thou our potter.\" \u2014 Isaiah 64:8"' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'worker_bread',
+      name: 'Bread Seller',
+      x: 7, z: 5.8,
+      bodyColor: 0x9a7040,
+      accentColor: 0xd4a060,
+      headColor: 0xb08050,
+      dialogues: [
+        { speaker: 'Bread Seller', text: '"Barley loaves! Still warm from the oven! A denarius for two loaves!"' },
+        { speaker: 'Bread Seller', text: '"Buy bread before you leave, traveler. The desert road does not feed the hungry."' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'worker_oil',
+      name: 'Oil Merchant',
+      x: -7, z: 5.8,
+      bodyColor: 0x4a6030,
+      accentColor: 0x8aaa50,
+      headColor: 0xb07840,
+      dialogues: [
+        { speaker: 'Oil Merchant', text: '"Olive oil from the Mount of Olives! The purest pressing for lamps and cooking alike!"' },
+        { speaker: 'Oil Merchant', text: '"Keep your lamp full, friend. \"Thy word is a lamp unto my feet.\" \u2014 Psalm 119:105"' },
+      ],
+      onComplete: null,
+    },
+
+    // ── Talking Pair ──────────────────────────────────────
+    {
+      id: 'talker_a',
+      name: 'Townsman',
+      x: 2, z: 13,
+      staticFacing: Math.PI / 2,
+      bodyColor: 0x5a6a8a,
+      accentColor: 0x8aaaca,
+      headColor: 0xb07840,
+      dialogues: [
+        { speaker: 'Townsman', text: '"I tell you, these followers of The Way are good people. They sell their possessions and share everything with the poor!"' },
+        { speaker: 'Townsman', text: '"\"And all that believed were together, and had all things common.\" \u2014 Acts 2:44. How can that be called heresy?"' },
+      ],
+      onComplete: null,
+    },
+    {
+      id: 'talker_b',
+      name: 'Scribe',
+      x: 4.5, z: 13,
+      staticFacing: -Math.PI / 2,
+      bodyColor: 0x2a4a2a,
+      accentColor: 0x4a8a4a,
+      headColor: 0xc09060,
+      dialogues: [
+        { speaker: 'Scribe', text: '"They blaspheme the Law! They say this Jesus rose from the dead. Saul is right to pursue them. The Sanhedrin must act!"' },
+        { speaker: 'Scribe', text: '"Hush your voice \u2014 Saul himself walks these very streets. Best not be heard taking their side."' },
+      ],
+      onComplete: null,
+    },
   ],
 
   buildings: [
@@ -123,6 +233,27 @@ var WORLD = {
     { type: 'lamp', x:  2,   z:  0 },
     { type: 'lamp', x: -2,   z:  9 },
     { type: 'lamp', x:  2,   z:  9 },
+  ],
+
+  signs: [
+    {
+      id: 'sign_market',
+      x: 0, z: 1.2,
+      label: 'Market Notice',
+      text: 'JERUSALEM MARKET\n\n\"A false balance is abomination to the LORD: but a just weight is his delight.\"\n\u2014 Proverbs 11:1',
+    },
+    {
+      id: 'sign_temple',
+      x: 0, z: -9.6,
+      label: 'Temple Inscription',
+      text: 'HOLY TEMPLE OF THE LORD\n\nEnter with reverence. Remove thy sandals.\n\n\"My house shall be called a house of prayer for all people.\"\n\u2014 Isaiah 56:7',
+    },
+    {
+      id: 'sign_damascus',
+      x: 0, z: 19.4,
+      label: 'Road Marker',
+      text: 'ROAD TO DAMASCUS\n\nThree days journey north.\nAll travelers must carry proper letters of passage.',
+    },
   ],
 
   // AABB collision boxes {minX, maxX, minZ, maxZ}

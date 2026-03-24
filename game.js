@@ -20,6 +20,7 @@ const Game = {
   camera:      null,
   playerGroup: null,
   npcObjects:  {},   // id -> { group, data }
+  signObjects: [],   // { group, data }
   lampLights:  [],
 
   player: {
@@ -70,7 +71,7 @@ const Game = {
     const canvas = document.getElementById('game-canvas');
 
     // Renderer
-    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -79,8 +80,8 @@ const Game = {
 
     // Scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x87b8d4);
-    this.scene.fog = new THREE.Fog(0xc8a870, 35, 75);
+    this.scene.background = null;
+    this.scene.fog = new THREE.Fog(0xe8d4a0, 38, 80);
 
     // Camera
     const aspect = window.innerWidth / window.innerHeight;
@@ -90,11 +91,23 @@ const Game = {
     this.player.pos = new THREE.Vector3(0, 0, 17);
     this.cam.pos    = new THREE.Vector3(0, 9, 29);
 
+    // Post-processing
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight), 0.45, 0.4, 0.82
+    );
+    this.composer.addPass(bloom);
+    this.composer.addPass(new OutputPass());
+    this.fxaaPass = new ShaderPass(FXAAShader);
+    this.composer.addPass(this.fxaaPass);
+
     // Build world
     this.setupLighting();
     this.buildWorld();
     this.buildPlayer();
     this.buildNPCs();
+    this.buildSigns();
 
     // Resize
     this.resize();
@@ -128,40 +141,60 @@ const Game = {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (this.composer) {
+      this.composer.setSize(w, h);
+      if (this.fxaaPass) {
+        const pr = this.renderer.getPixelRatio();
+        this.fxaaPass.material.uniforms['resolution'].value.set(1 / (w * pr), 1 / (h * pr));
+      }
+    }
   },
 
   // ── LIGHTING ──────────────────────────────────────────────
   setupLighting() {
-    // Warm ambient
-    const ambient = new THREE.AmbientLight(0xffe8c0, 0.6);
-    this.scene.add(ambient);
+    // Sky/ground hemisphere — warm sky, sandy bounce
+    const hemi = new THREE.HemisphereLight(0x9fc8e8, 0xc49060, 0.7);
+    this.scene.add(hemi);
 
-    // Sun (directional)
-    const sun = new THREE.DirectionalLight(0xffd060, 1.4);
-    sun.position.set(20, 30, 20);
+    // Sun
+    const sun = new THREE.DirectionalLight(0xffe0a0, 1.8);
+    sun.position.set(22, 38, 22);
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 2048;
     sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.left   = -30;
-    sun.shadow.camera.right  =  30;
-    sun.shadow.camera.top    =  30;
-    sun.shadow.camera.bottom = -30;
+    sun.shadow.camera.left   = -35;
+    sun.shadow.camera.right  =  35;
+    sun.shadow.camera.top    =  35;
+    sun.shadow.camera.bottom = -35;
     sun.shadow.camera.near   = 1;
-    sun.shadow.camera.far    = 100;
-    sun.shadow.bias = -0.001;
+    sun.shadow.camera.far    = 120;
+    sun.shadow.bias = -0.0008;
     this.scene.add(sun);
 
-    // Cool fill from the north
-    const fill = new THREE.DirectionalLight(0x8090b0, 0.25);
-    fill.position.set(-15, 8, -10);
-    this.scene.add(fill);
+    // Soft cool rim from north
+    const rim = new THREE.DirectionalLight(0xaabbcc, 0.35);
+    rim.position.set(-10, 12, -20);
+    this.scene.add(rim);
   },
 
   // ── BUILD WORLD ───────────────────────────────────────────
   buildWorld() {
+    // Procedural sky
+    const sky = new Sky();
+    sky.scale.setScalar(450);
+    this.scene.add(sky);
+    const su = sky.material.uniforms;
+    su['turbidity'].value       = 5;
+    su['rayleigh'].value        = 1.8;
+    su['mieCoefficient'].value  = 0.004;
+    su['mieDirectionalG'].value = 0.82;
+    const sunDir = new THREE.Vector3();
+    sunDir.setFromSphericalCoords(1, THREE.MathUtils.degToRad(68), THREE.MathUtils.degToRad(20));
+    su['sunPosition'].value.copy(sunDir);
+
     // Ground plane
     const groundGeo = new THREE.PlaneGeometry(80, 80);
-    const groundMat = new THREE.MeshLambertMaterial({ color: 0xc4956a });
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0xc4956a, roughness: 0.95, metalness: 0 });
     const ground    = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -195,7 +228,7 @@ const Game = {
 
   addBuilding(b) {
     const geo  = new THREE.BoxGeometry(b.w, b.h, b.d);
-    const mat  = new THREE.MeshLambertMaterial({ color: b.color });
+    const mat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: b.color });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(b.x, b.h / 2, b.z);
     mesh.castShadow    = true;
@@ -204,7 +237,7 @@ const Game = {
 
     if (b.roofColor !== undefined) {
       const rGeo  = new THREE.BoxGeometry(b.w + 0.15, 0.18, b.d + 0.15);
-      const rMat  = new THREE.MeshLambertMaterial({ color: b.roofColor });
+      const rMat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: b.roofColor });
       const roof  = new THREE.Mesh(rGeo, rMat);
       roof.position.set(b.x, b.h + 0.09, b.z);
       roof.castShadow = true;
@@ -214,7 +247,7 @@ const Game = {
 
   addPath(p) {
     const geo  = new THREE.BoxGeometry(p.w, 0.06, p.d);
-    const mat  = new THREE.MeshLambertMaterial({ color: p.color });
+    const mat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: p.color });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(p.x, 0.03, p.z);
     mesh.receiveShadow = true;
@@ -224,7 +257,7 @@ const Game = {
   addPalm(x, z) {
     // Trunk
     const trunkGeo  = new THREE.CylinderGeometry(0.13, 0.2, 3.2, 6);
-    const trunkMat  = new THREE.MeshLambertMaterial({ color: 0x7a5010 });
+    const trunkMat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x7a5010 });
     const trunk     = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.set(x, 1.6, z);
     trunk.castShadow = true;
@@ -239,7 +272,7 @@ const Game = {
       [ -0.2, -0.3, -0.9 ],
       [  0.6, -0.2, -0.6 ],
     ];
-    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2d7a2d });
+    const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x2d7a2d });
     for (const off of leafOffsets) {
       const leafGeo  = new THREE.SphereGeometry(0.55, 5, 4);
       const leaf     = new THREE.Mesh(leafGeo, leafMat);
@@ -255,7 +288,7 @@ const Game = {
 
     // Table top
     const topGeo = new THREE.BoxGeometry(2.2, 0.1, 1.3);
-    const topMat = new THREE.MeshLambertMaterial({ color: 0x8b5e2a });
+    const topMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x8b5e2a });
     const top    = new THREE.Mesh(topGeo, topMat);
     top.position.y = 0.85;
     top.castShadow = true;
@@ -263,7 +296,7 @@ const Game = {
 
     // 4 legs
     const legGeo = new THREE.BoxGeometry(0.1, 0.85, 0.1);
-    const legMat = new THREE.MeshLambertMaterial({ color: 0x6b3e0a });
+    const legMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x6b3e0a });
     const legPositions = [
       [ 0.95, 0.425,  0.55],
       [-0.95, 0.425,  0.55],
@@ -278,7 +311,7 @@ const Game = {
 
     // Awning
     const awningGeo = new THREE.BoxGeometry(2.5, 0.1, 1.6);
-    const awningMat = new THREE.MeshLambertMaterial({ color: s.color });
+    const awningMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: s.color });
     const awning    = new THREE.Mesh(awningGeo, awningMat);
     awning.position.y = 2.0;
     awning.castShadow = true;
@@ -286,7 +319,7 @@ const Game = {
 
     // 4 awning poles
     const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.15, 5);
-    const poleMat = new THREE.MeshLambertMaterial({ color: 0x6b3e0a });
+    const poleMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x6b3e0a });
     const polePositions = [
       [ 0.95, 1.42,  0.55],
       [-0.95, 1.42,  0.55],
@@ -303,7 +336,7 @@ const Game = {
     const itemColors = [0xc8a820, 0xc03018, 0x80a030];
     const itemGeo    = new THREE.SphereGeometry(0.13, 5, 4);
     for (let i = 0; i < 3; i++) {
-      const itemMat  = new THREE.MeshLambertMaterial({ color: itemColors[i] });
+      const itemMat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: itemColors[i] });
       const item     = new THREE.Mesh(itemGeo, itemMat);
       item.position.set(-0.5 + i * 0.5, 0.97, 0);
       group.add(item);
@@ -316,7 +349,7 @@ const Game = {
   addDecoration(d) {
     if (d.type === 'pot') {
       const geo  = new THREE.CylinderGeometry(0.18, 0.12, 0.4, 7);
-      const mat  = new THREE.MeshLambertMaterial({ color: 0xa05030 });
+      const mat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0xa05030 });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(d.x, 0.2, d.z);
       mesh.castShadow = true;
@@ -325,17 +358,18 @@ const Game = {
     } else if (d.type === 'lamp') {
       // Pole
       const poleGeo  = new THREE.CylinderGeometry(0.05, 0.05, 2.8, 5);
-      const poleMat  = new THREE.MeshLambertMaterial({ color: 0x6a4a20 });
+      const poleMat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x6a4a20 });
       const pole     = new THREE.Mesh(poleGeo, poleMat);
       pole.position.set(d.x, 1.4, d.z);
       this.scene.add(pole);
 
       // Globe
       const globeGeo = new THREE.SphereGeometry(0.16, 7, 5);
-      const globeMat = new THREE.MeshLambertMaterial({
+      const globeMat = new THREE.MeshStandardMaterial({
         color: 0xffd070,
         emissive: new THREE.Color(0xffd070),
-        emissiveIntensity: 0.6,
+        roughness: 0.1, metalness: 0,
+        emissiveIntensity: 2.0,
       });
       const globe = new THREE.Mesh(globeGeo, globeMat);
       globe.position.set(d.x, 2.9, d.z);
@@ -355,7 +389,7 @@ const Game = {
 
     // Robe
     const robeGeo = new THREE.CylinderGeometry(0.22, 0.38, 1.05, 8);
-    const robeMat = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
+    const robeMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x5a4030 });
     const robe    = new THREE.Mesh(robeGeo, robeMat);
     robe.position.y = 0.525;
     robe.castShadow = true;
@@ -364,21 +398,21 @@ const Game = {
 
     // Robe hem accent ring
     const hemGeo = new THREE.CylinderGeometry(0.39, 0.39, 0.07, 8);
-    const hemMat = new THREE.MeshLambertMaterial({ color: 0xc9a84c });
+    const hemMat = new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.82, color: 0xc9a84c });
     const hem    = new THREE.Mesh(hemGeo, hemMat);
     hem.position.y = 0.035;
     group.add(hem);
 
     // Belt
     const beltGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.07, 8);
-    const beltMat = new THREE.MeshLambertMaterial({ color: 0x8b5e20 });
+    const beltMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.6, color: 0x8b5e20 });
     const belt    = new THREE.Mesh(beltGeo, beltMat);
     belt.position.y = 0.72;
     group.add(belt);
 
     // Head
     const headGeo = new THREE.SphereGeometry(0.23, 8, 6);
-    const headMat = new THREE.MeshLambertMaterial({ color: 0xc09060 });
+    const headMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0xc09060 });
     const head    = new THREE.Mesh(headGeo, headMat);
     head.position.y = 1.26;
     head.castShadow = true;
@@ -386,7 +420,7 @@ const Game = {
 
     // Headband ring
     const bandGeo = new THREE.TorusGeometry(0.23, 0.03, 4, 12);
-    const bandMat = new THREE.MeshLambertMaterial({ color: 0xc9a84c });
+    const bandMat = new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.82, color: 0xc9a84c });
     const band    = new THREE.Mesh(bandGeo, bandMat);
     band.rotation.x = Math.PI / 2;
     band.position.y = 1.30;
@@ -394,7 +428,7 @@ const Game = {
 
     // Beard
     const beardGeo = new THREE.SphereGeometry(0.13, 6, 4);
-    const beardMat = new THREE.MeshLambertMaterial({ color: 0x4a3020 });
+    const beardMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x4a3020 });
     const beard    = new THREE.Mesh(beardGeo, beardMat);
     beard.scale.set(1, 0.7, 0.8);
     beard.position.set(0, 1.14, 0.15);
@@ -415,13 +449,50 @@ const Game = {
     }
   },
 
+  // ── BUILD SIGNS ───────────────────────────────────────────
+  buildSigns() {
+    this.signObjects = [];
+    for (const s of WORLD.signs) {
+      const group = new THREE.Group();
+
+      // Post
+      const postGeo = new THREE.BoxGeometry(0.1, 1.6, 0.1);
+      const postMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0x6b3e0a });
+      const post    = new THREE.Mesh(postGeo, postMat);
+      post.position.y = 0.8;
+      post.castShadow = true;
+      group.add(post);
+
+      // Board
+      const boardGeo = new THREE.BoxGeometry(1.5, 0.65, 0.09);
+      const boardMat = new THREE.MeshStandardMaterial({ roughness: 0.75, metalness: 0, color: 0xd4a85a });
+      const board    = new THREE.Mesh(boardGeo, boardMat);
+      board.position.y = 1.57;
+      board.castShadow = true;
+      group.add(board);
+
+      // Gold trim edges
+      const trimMat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.7, color: 0xb8892a });
+      const topTrim = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.06, 0.1), trimMat);
+      topTrim.position.y = 1.92;
+      group.add(topTrim);
+      const botTrim = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.06, 0.1), trimMat);
+      botTrim.position.y = 1.22;
+      group.add(botTrim);
+
+      group.position.set(s.x, 0, s.z);
+      this.scene.add(group);
+      this.signObjects.push({ group, data: s });
+    }
+  },
+
   createNPCGroup(npc) {
     const group = new THREE.Group();
 
     if (npc.isHighPriest) {
       // Wider robe
       const robeGeo = new THREE.CylinderGeometry(0.26, 0.46, 1.1, 8);
-      const robeMat = new THREE.MeshLambertMaterial({ color: npc.bodyColor });
+      const robeMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.bodyColor });
       const robe    = new THREE.Mesh(robeGeo, robeMat);
       robe.position.y = 0.55;
       robe.castShadow = true;
@@ -429,14 +500,14 @@ const Game = {
 
       // Wider hem
       const hemGeo = new THREE.CylinderGeometry(0.47, 0.47, 0.07, 8);
-      const hemMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const hemMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.accentColor });
       const hem    = new THREE.Mesh(hemGeo, hemMat);
       hem.position.y = 0.035;
       group.add(hem);
 
       // Larger head
       const headGeo = new THREE.SphereGeometry(0.25, 8, 6);
-      const headMat = new THREE.MeshLambertMaterial({ color: npc.headColor });
+      const headMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.headColor });
       const head    = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.32;
       head.castShadow = true;
@@ -444,14 +515,14 @@ const Game = {
 
       // Mitre (tall priest hat)
       const mitreGeo = new THREE.CylinderGeometry(0.07, 0.24, 0.55, 6);
-      const mitreMat = new THREE.MeshLambertMaterial({ color: 0xf5f0e0 });
+      const mitreMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: 0xf5f0e0 });
       const mitre    = new THREE.Mesh(mitreGeo, mitreMat);
       mitre.position.y = 1.87;
       group.add(mitre);
 
       // Breastplate
       const bpGeo = new THREE.BoxGeometry(0.4, 0.32, 0.06);
-      const bpMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const bpMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.accentColor });
       const bp    = new THREE.Mesh(bpGeo, bpMat);
       bp.position.set(0, 0.85, 0.28);
       group.add(bp);
@@ -466,7 +537,7 @@ const Game = {
         [ 0.1, -0.08, 0.06],
       ];
       for (let i = 0; i < 4; i++) {
-        const gemMat = new THREE.MeshLambertMaterial({ color: gemColors[i] });
+        const gemMat = new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.1, color: gemColors[i], emissive: new THREE.Color(gemColors[i]), emissiveIntensity: 0.4 });
         const gem    = new THREE.Mesh(gemGeo, gemMat);
         gem.position.set(
           bp.position.x + gemPositions[i][0],
@@ -479,7 +550,7 @@ const Game = {
     } else {
       // Regular NPC robe
       const robeGeo = new THREE.CylinderGeometry(0.2, 0.35, 1.0, 7);
-      const robeMat = new THREE.MeshLambertMaterial({ color: npc.bodyColor });
+      const robeMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.bodyColor });
       const robe    = new THREE.Mesh(robeGeo, robeMat);
       robe.position.y = 0.5;
       robe.castShadow = true;
@@ -487,14 +558,14 @@ const Game = {
 
       // Hem
       const hemGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.06, 7);
-      const hemMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const hemMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.accentColor });
       const hem    = new THREE.Mesh(hemGeo, hemMat);
       hem.position.y = 0.03;
       group.add(hem);
 
       // Head
       const headGeo = new THREE.SphereGeometry(0.21, 8, 6);
-      const headMat = new THREE.MeshLambertMaterial({ color: npc.headColor });
+      const headMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.headColor });
       const head    = new THREE.Mesh(headGeo, headMat);
       head.position.y = 1.21;
       head.castShadow = true;
@@ -502,7 +573,7 @@ const Game = {
 
       // Head wrap
       const wrapGeo = new THREE.CylinderGeometry(0.215, 0.215, 0.055, 8);
-      const wrapMat = new THREE.MeshLambertMaterial({ color: npc.accentColor });
+      const wrapMat = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: npc.accentColor });
       const wrap    = new THREE.Mesh(wrapGeo, wrapMat);
       wrap.position.y = 1.25;
       group.add(wrap);
@@ -606,7 +677,7 @@ const Game = {
     const dt = Math.min((time - this.lastTime) / 1000, 0.05);
     this.lastTime = time;
     this.update(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
     requestAnimationFrame(t => this.loop(t));
   },
 
@@ -744,6 +815,13 @@ const Game = {
 
     for (const id in this.npcObjects) {
       const obj = this.npcObjects[id];
+
+      // Talking-pair NPCs keep a fixed facing angle
+      if (obj.data.staticFacing !== undefined) {
+        obj.group.rotation.y = obj.data.staticFacing;
+        continue;
+      }
+
       const nx  = obj.group.position.x;
       const nz  = obj.group.position.z;
       const dx  = px - nx;
@@ -767,9 +845,14 @@ const Game = {
       return;
     }
 
-    const nearest = this.findNearestNPC(3.5);
-    if (nearest) {
-      this.elInteractPrompt.textContent = '[E] Talk to ' + nearest.data.name;
+    const nearestNPC  = this.findNearestNPC(3.5);
+    const nearestSign = this.findNearestSign(2.5);
+
+    if (nearestNPC) {
+      this.elInteractPrompt.textContent = '[E] Talk to ' + nearestNPC.data.name;
+      this.elInteractPrompt.classList.remove('hidden');
+    } else if (nearestSign) {
+      this.elInteractPrompt.textContent = '[E] Read ' + nearestSign.data.label;
       this.elInteractPrompt.classList.remove('hidden');
     } else {
       this.elInteractPrompt.classList.add('hidden');
@@ -797,6 +880,26 @@ const Game = {
     return nearest;
   },
 
+  // ── FIND NEAREST SIGN ─────────────────────────────────────
+  findNearestSign(maxDist) {
+    const px = this.player.pos.x;
+    const pz = this.player.pos.z;
+    let nearest = null;
+    let nearestDist = maxDist;
+
+    for (const s of this.signObjects) {
+      const dx   = px - s.group.position.x;
+      const dz   = pz - s.group.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = s;
+      }
+    }
+
+    return nearest;
+  },
+
   // ── INTERACT ──────────────────────────────────────────────
   tryInteract() {
     if (this.dialogueActive) {
@@ -806,11 +909,28 @@ const Game = {
 
     if (this.interactCooldown > 0) return;
 
-    const nearest = this.findNearestNPC(3.5);
-    if (!nearest) return;
+    // Prefer NPC over sign if both are nearby
+    const nearestNPC = this.findNearestNPC(3.5);
+    if (nearestNPC) {
+      this.interactCooldown = 0.4;
+      this.startDialogue(nearestNPC);
+      return;
+    }
 
-    this.interactCooldown = 0.4;
-    this.startDialogue(nearest);
+    const nearestSign = this.findNearestSign(2.5);
+    if (nearestSign) {
+      this.interactCooldown = 0.4;
+      // Wrap sign data so it works with the existing dialogue system
+      const signAsNPC = {
+        group: nearestSign.group,
+        data: {
+          name: nearestSign.data.label,
+          dialogues: [{ speaker: nearestSign.data.label, text: nearestSign.data.text }],
+          onComplete: null,
+        },
+      };
+      this.startDialogue(signAsNPC);
+    }
   },
 
   // ── DIALOGUE ──────────────────────────────────────────────

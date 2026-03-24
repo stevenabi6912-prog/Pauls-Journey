@@ -102,7 +102,7 @@ var WORLD = {
       bodyColor: 0x5a4a8a, accentColor: 0x8a7aaa, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Weaver', text: '"I weave cloth from the finest wool of Judea and linen from Egypt. Each thread placed with care."' },
-        { speaker: 'Weaver', text: '"A tent-maker yourself! Your hands know this craft well. It will serve you greatly on the long road to Damascus."' },
+        { speaker: 'Weaver', text: '"If you need quality cloth worked into a tent, seek out Benjamin the craftsman — he works the looms down in the southern quarter near the stables."' },
       ],
       onComplete: null,
     },
@@ -179,7 +179,7 @@ var WORLD = {
 
     // ── Temple Soldiers (become companions after letters) ────
     {
-      id: 'barnabas', name: 'Temple Soldier',
+      id: 'barnabas', name: 'Temple Soldier', trueName: 'Barnabas',
       x: -15.5, z: 22,
       bodyColor: 0x5a4a3a, accentColor: 0x8a6a40, headColor: 0xb07840,
       dialogues: [
@@ -193,7 +193,7 @@ var WORLD = {
       onComplete: 'recruit_companion',
     },
     {
-      id: 'lucius', name: 'Temple Soldier',
+      id: 'lucius', name: 'Temple Soldier', trueName: 'Lucius',
       x: -14, z: 35,
       bodyColor: 0x4a4a3a, accentColor: 0x7a6a50, headColor: 0x8a5830,
       dialogues: [
@@ -207,7 +207,7 @@ var WORLD = {
       onComplete: 'recruit_companion',
     },
     {
-      id: 'silas', name: 'Temple Soldier',
+      id: 'silas', name: 'Temple Soldier', trueName: 'Silas',
       x: 16, z: 18,
       bodyColor: 0x4a5040, accentColor: 0x7a7060, headColor: 0xb08060,
       dialogues: [
@@ -221,7 +221,7 @@ var WORLD = {
       onComplete: 'recruit_companion',
     },
     {
-      id: 'manaen', name: 'Temple Soldier',
+      id: 'manaen', name: 'Temple Soldier', trueName: 'Manaen',
       x: 3, z: 44,
       bodyColor: 0x5a4030, accentColor: 0x9a7040, headColor: 0xc09060,
       dialogues: [
@@ -238,18 +238,20 @@ var WORLD = {
     // ── Economy NPCs ────────────────────────────────────────
     {
       id: 'miriam_cloth', name: 'Miriam',
-      x: 3, z: 31,
+      x: 5, z: 23,
       bodyColor: 0xb06080, accentColor: 0xe090b0, headColor: 0xb07840,
+      trueName: 'Miriam',
       dialogues: [
-        { speaker: 'Miriam', text: '"Saul! I hear you need supplies for a journey. I have the finest tent cloth in Jerusalem."' },
-        { speaker: 'Miriam', text: '"Benjamin the Weaver is at the craftsmen\'s quarter, south past the market. He will weave it into a tent you can sell."' },
-        { speaker: 'Miriam', text: '"One bolt of tent cloth \u2014 2 shekels. Press [E] to purchase, or walk away to decline."' },
+        { speaker: 'Miriam', text: '"Shalom! I sell the finest tent cloth in Jerusalem — strong enough for any desert camp."' },
+        { speaker: 'Miriam', text: '"Once you have cloth, take it south to Benjamin the Weaver near the stables. He will craft it into a fine tent you can sell."' },
+        { speaker: 'Miriam', text: '"One bolt of cloth is 2 shekels. Shall I wrap one up for you?"' },
       ],
-      onComplete: 'buy_cloth',
+      onComplete: 'offer_cloth',
     },
     {
       id: 'loom_keeper', name: 'Benjamin the Weaver',
-      x: 8, z: 36,
+      x: 14, z: 40,
+      trueName: 'Benjamin',
       bodyColor: 0x506870, accentColor: 0x8098a8, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Benjamin', text: '"Ah, you have tent cloth! Bring it here and I will weave it into a fine tent for you. It will fetch a good price."' },
@@ -355,7 +357,7 @@ var WORLD = {
     // ── Craftsmen's quarter ─────────────────────────────────
     { x:  7, z: 33, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
     { x: -7, z: 33, w: 5, d: 4, h: 3.0, color: 0x6a5a38, roofColor: 0x4a3818 },
-    { x: 12, z: 43, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
+    { x: 17, z: 43, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
 
     // ── Stable complex ──────────────────────────────────────
     { x: 22, z: 45, w: 10, d: 8,  h: 3.0, color: 0x6a5040, roofColor: 0x4a3020 },
@@ -445,7 +447,26 @@ var WORLD = {
   // AABB collision boxes {minX, maxX, minZ, maxZ}
   colliders: [
     // ── Temple perimeter ────────────────────────────────────
-    { minX: -12, maxX:  12,  minZ: -24,   maxZ: -23   },
+    { minX: -11, maxX:  11,  minZ: -23.5, maxZ: -21.5 },
+
+    // ── Temple front columns (5) — entrance gap at x:±0.9 ──
+    { minX: -4.33, maxX: -3.67, minZ: -11.73, maxZ: -11.07 },
+    { minX: -2.33, maxX: -1.67, minZ: -11.73, maxZ: -11.07 },
+    { minX: -0.33, maxX:  0.33, minZ: -11.73, maxZ: -11.07 },
+    { minX:  1.67, maxX:  2.33, minZ: -11.73, maxZ: -11.07 },
+    { minX:  3.67, maxX:  4.33, minZ: -11.73, maxZ: -11.07 },
+
+    // ── Left side columns (4) ────────────────────────────────
+    { minX: -9.3, maxX: -8.7, minZ: -13.8, maxZ: -13.2 },
+    { minX: -9.3, maxX: -8.7, minZ: -15.8, maxZ: -15.2 },
+    { minX: -9.3, maxX: -8.7, minZ: -17.8, maxZ: -17.2 },
+    { minX: -9.3, maxX: -8.7, minZ: -19.8, maxZ: -19.2 },
+
+    // ── Right side columns (4) ───────────────────────────────
+    { minX: 8.7, maxX: 9.3, minZ: -13.8, maxZ: -13.2 },
+    { minX: 8.7, maxX: 9.3, minZ: -15.8, maxZ: -15.2 },
+    { minX: 8.7, maxX: 9.3, minZ: -17.8, maxZ: -17.2 },
+    { minX: 8.7, maxX: 9.3, minZ: -19.8, maxZ: -19.2 },
     { minX: -12, maxX: -10,  minZ: -24,   maxZ: -10.5 },
     { minX:  10, maxX:  12,  minZ: -24,   maxZ: -10.5 },
     { minX: -12, maxX: -1.5, minZ: -12,   maxZ: -10.8 },
@@ -511,7 +532,7 @@ var WORLD = {
     // ── Craftsmen's quarter ─────────────────────────────────
     { minX:  4,   maxX: 10,   minZ: 30.5, maxZ: 35.5 },
     { minX: -9.5, maxX: -4.5, minZ: 31,   maxZ: 35   },
-    { minX:  9.5, maxX: 14.5, minZ: 41,   maxZ: 45   },
+    { minX: 14.5, maxX: 19.5, minZ: 41,   maxZ: 45   },
 
     // ── Stable ──────────────────────────────────────────────
     { minX: 17, maxX: 27, minZ: 41, maxZ: 49 },

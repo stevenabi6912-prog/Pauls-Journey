@@ -65,6 +65,9 @@ const Game = {
   horsesAcquired:      false,
   recruitedNPCs:       {},
   inventory:           { shekels: 5, tentCloth: 0, tents: 0 },
+  minigameActive:      false,
+  horseObjects:        [],
+  choiceActive:        false,
 
   // ── DOM REFS ──────────────────────────────────────────────
   elDialogueBox:    null,
@@ -78,6 +81,7 @@ const Game = {
   elNotifText:      null,
   elJoyBase:        null,
   elJoyThumb:       null,
+  elCompassFace:    null,
 
   // ── INIT ─────────────────────────────────────────────────
   init() {
@@ -138,6 +142,7 @@ const Game = {
     this.elNotifText       = document.getElementById('notif-text');
     this.elJoyBase         = document.getElementById('joystick-base');
     this.elJoyThumb        = document.getElementById('joystick-thumb');
+    this.elCompassFace     = document.getElementById('compass-face');
 
     // Input
     this.setupInput();
@@ -731,13 +736,15 @@ const Game = {
     if (this.interactCooldown  > 0) this.interactCooldown  -= dt;
     if (this.gateBlockCooldown > 0) this.gateBlockCooldown -= dt;
 
-    if (!this.dialogueActive && !this.templeTransitioning) {
+    if (!this.dialogueActive && !this.templeTransitioning && !this.minigameActive && !this.choiceActive) {
       this.updatePlayer(dt);
     }
 
     this.updateCamera(dt);
     this.updateNPCFacing();
     this.updateInteractUI();
+    this.updateFollowers(dt);
+    this.updateCompass();
   },
 
   // ── PLAYER MOVEMENT ───────────────────────────────────────
@@ -832,7 +839,7 @@ const Game = {
     // Temple entry / exit transition
     if (!this.templeTransitioning) {
       const px = pos.x, pz = pos.z;
-      if (!this.templeInside && pz < -11.5 && Math.abs(px) < 1.3) {
+      if (!this.templeInside && pz < -11.5 && Math.abs(px) < 1.8) {
         this.enterTemple();
       } else if (this.templeInside && pz > -11.5 && Math.abs(px) < 1.3) {
         this.exitTemple();
@@ -863,9 +870,10 @@ const Game = {
       }
     }
 
-    // NPC bodies (dynamic)
+    // NPC bodies (dynamic) — skip recruited followers who move with player
     const nr2 = (r + 0.38) * (r + 0.38);
     for (const id in this.npcObjects) {
+      if (this.recruitedNPCs[id]) continue;
       const g  = this.npcObjects[id].group;
       const dx = x - g.position.x;
       const dz = z - g.position.z;
@@ -902,8 +910,8 @@ const Game = {
   updateCamera(dt) {
     const p = this.player.pos;
     const targetX = p.x;
-    const targetY = this.templeInside ? 15 : this.cam.offsetY;
-    const targetZ = p.z + (this.templeInside ? 1.5 : this.cam.offsetZ);
+    const targetY = this.templeInside ? 20 : this.cam.offsetY;
+    const targetZ = p.z + (this.templeInside ? 9 : this.cam.offsetZ);
 
     const k = 0.07;
     this.cam.pos.x += (targetX - this.cam.pos.x) * k;
@@ -911,7 +919,7 @@ const Game = {
     this.cam.pos.z += (targetZ - this.cam.pos.z) * k;
 
     this.camera.position.copy(this.cam.pos);
-    this.camera.lookAt(p.x, this.templeInside ? 1.2 : 0.8, p.z - (this.templeInside ? 0.5 : 1.5));
+    this.camera.lookAt(p.x, this.templeInside ? 1.5 : 0.8, p.z - (this.templeInside ? 5 : 1.5));
   },
 
   // ── NPC FACING ────────────────────────────────────────────
@@ -1064,7 +1072,7 @@ const Game = {
     } else if (id === 'stable_master' && this.inventory.shekels < 15) {
       dialogues = [{ speaker: 'Elias', text: '"Four horses for the Damascus road \u2014 that\'s 15 shekels. Come back when you have the coin. You can earn it making and selling tents."' }];
     } else if (id === 'loom_keeper' && this.inventory.tentCloth === 0) {
-      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave you a fine tent. Find Miriam \u2014 she is on the main road just north of here. She sells cloth for 2 shekels a bolt."' }];
+      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave it into a fine tent. Find Miriam \u2014 she sells cloth on the main road north of the craftsmen\'s quarter. 2 shekels a bolt."' }];
     } else if (id === 'joseph_buyer' && this.inventory.tents === 0) {
       dialogues = [{ speaker: 'Joseph', text: '"Do you have any tents to sell? I pay 5 shekels each. Bring me one and we have a deal."' }];
     } else if (id === 'miriam_cloth' && this.inventory.shekels < 2) {
@@ -1172,23 +1180,48 @@ const Game = {
       } else if (cb === 'recruit_companion' && !this.recruitedNPCs[nid] && this.hasLetters) {
         this.recruitedNPCs[nid] = true;
         this.companionsRecruited++;
-        this.showNotification('Companion ' + this.companionsRecruited + ' of 4 recruited!\n' + this.currentDialogueNPC.data.name + ' will join you.');
+        const trueName = this.currentDialogueNPC.data.trueName || this.currentDialogueNPC.data.name;
+        this.showNotification('Companion ' + this.companionsRecruited + '/4 recruited!\n' + trueName + ' will follow you.');
         this.updateQuestProgress();
 
-      } else if (cb === 'buy_cloth') {
+      } else if (cb === 'offer_cloth') {
+        const npcRef = this.currentDialogueNPC;
         if (this.inventory.shekels >= 2) {
-          this.inventory.shekels -= 2;
-          this.inventory.tentCloth++;
-          this.updateInventoryHUD();
-          this.showNotification('Tent cloth purchased! (-2 shekels)\nBring it to Benjamin the Weaver.');
+          this.showChoice(
+            'Buy one bolt of tent cloth for 2 shekels?',
+            'Buy (2 shekels)',
+            'Decline',
+            () => {
+              this.inventory.shekels -= 2;
+              this.inventory.tentCloth++;
+              this.updateInventoryHUD();
+              this.updateSatchelHUD();
+              this.showNotification('Tent cloth purchased! (\u22122 shekels)\nBring it to Benjamin the Weaver.');
+            },
+            () => {
+              this.showNotification('Come back when you need cloth.');
+            }
+          );
+        } else {
+          this.showNotification('You need at least 2 shekels\nto buy tent cloth.\nMake some coin first!');
         }
 
       } else if (cb === 'craft_tent') {
         if (this.inventory.tentCloth > 0) {
-          this.inventory.tentCloth--;
-          this.inventory.tents++;
-          this.updateInventoryHUD();
-          this.showNotification('Tent crafted!\nSell it to Joseph for 5 shekels.');
+          this.startWeavingMinigame(
+            () => {
+              this.inventory.tentCloth--;
+              this.inventory.tents++;
+              this.updateInventoryHUD();
+              this.updateSatchelHUD();
+              this.showNotification('Tent crafted!\nSell it to Joseph for 5 shekels.');
+            },
+            () => {
+              this.showNotification('Practice makes perfect!\nSpeak to Benjamin again\nto try the weaving once more.');
+            }
+          );
+        } else {
+          this.showNotification('You need tent cloth first!\nBuy some from Miriam.');
         }
 
       } else if (cb === 'sell_tent') {
@@ -1196,18 +1229,29 @@ const Game = {
           this.inventory.tents--;
           this.inventory.shekels += 5;
           this.updateInventoryHUD();
+          this.updateSatchelHUD();
           this.showNotification('Tent sold for 5 shekels!\nTotal: ' + this.inventory.shekels + ' shekels.');
         }
 
       } else if (cb === 'buy_horses') {
         if (!this.horsesAcquired && this.inventory.shekels >= 15) {
-          this.inventory.shekels -= 15;
-          this.horsesAcquired = true;
-          this.updateInventoryHUD();
-          this.updateQuestProgress();
-          this.showNotification('4 horses purchased!\nNow find your companions.');
+          this.showChoice(
+            'Buy 5 horses for the Damascus road — 15 shekels?',
+            'Buy (15 shekels)',
+            'Not yet',
+            () => {
+              this.inventory.shekels -= 15;
+              this.horsesAcquired = true;
+              this.updateInventoryHUD();
+              this.updateQuestProgress();
+              this.buildHorses();
+            },
+            () => {
+              this.showNotification('Come back when you are ready\nto purchase the horses.');
+            }
+          );
         } else if (!this.horsesAcquired) {
-          this.showNotification('Not enough shekels!\nNeed 15 to buy 4 horses.\nMake and sell tents to earn coin.');
+          this.showNotification('Not enough shekels!\nNeed 15 to buy 5 horses.\nMake and sell tents to earn coin.');
         }
 
       } else if (cb === 'gate_open') {
@@ -1262,10 +1306,10 @@ const Game = {
 
     setTimeout(() => {
       // Teleport player inside entrance
-      this.player.pos.set(0, 0, -13);
-      this.playerGroup.position.set(0, 0, -13);
+      this.player.pos.set(0, 0, -15);
+      this.playerGroup.position.set(0, 0, -15);
       // Snap camera overhead to avoid lerp glitch
-      this.cam.pos.set(0, 15, -13 + 1.5);
+      this.cam.pos.set(0, 20, -15 + 9);
 
       // Add warm torch light inside temple
       if (!this.templeLight) {
@@ -1322,10 +1366,8 @@ const Game = {
     this.elQuestText.textContent    = 'Find 4 companions (0/4) & buy horses';
     this.elScriptureRef.textContent = 'Acts 9:2';
 
-    // Reveal satchel + shekel HUD
-    const satchel = document.getElementById('satchel-hud');
-    if (satchel) satchel.classList.remove('hidden');
     this.updateInventoryHUD();
+    this.updateSatchelHUD();
 
     this.showNotification('\ud83d\udcdc Letters added to satchel!\nFind companions & buy horses\nto prepare for Damascus.');
   },
@@ -1485,6 +1527,388 @@ const Game = {
         flash.style.opacity = '1';
       });
     }, 4200);
+  },
+
+  // ── FOLLOWERS (recruited soldiers) ────────────────────────
+  updateFollowers(dt) {
+    if (!this.hasLetters) return;
+    const px = this.player.pos.x;
+    const pz = this.player.pos.z;
+    const followerIds = ['barnabas', 'lucius', 'silas', 'manaen'];
+    // Offset behind player, spread out
+    const offsets = [[-1.8, 2.2], [1.8, 2.2], [-2.8, 4.0], [2.8, 4.0]];
+
+    for (let i = 0; i < followerIds.length; i++) {
+      const id = followerIds[i];
+      if (!this.recruitedNPCs[id]) continue;
+      const npc = this.npcObjects[id];
+      if (!npc) continue;
+
+      const targetX = px + offsets[i][0];
+      const targetZ = pz + offsets[i][1];
+      const dx = targetX - npc.group.position.x;
+      const dz = targetZ - npc.group.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist > 0.12) {
+        const spd = Math.min(dist * 4.5, this.player.speed * 1.15);
+        npc.group.position.x += (dx / dist) * spd * dt;
+        npc.group.position.z += (dz / dist) * spd * dt;
+        npc.group.position.y = this.getTerrainY(npc.group.position.x, npc.group.position.z);
+        npc.group.rotation.y = Math.atan2(dx, dz);
+      }
+
+      // Horse follows same follower offset but a bit further back
+      if (this.horseObjects[i]) {
+        const hx = px + offsets[i][0] * 1.2;
+        const hz = pz + offsets[i][1] + 1.5;
+        const hdx = hx - this.horseObjects[i].position.x;
+        const hdz = hz - this.horseObjects[i].position.z;
+        const hd  = Math.sqrt(hdx * hdx + hdz * hdz);
+        if (hd > 0.15) {
+          const hs = Math.min(hd * 4, this.player.speed * 1.2);
+          this.horseObjects[i].position.x += (hdx / hd) * hs * dt;
+          this.horseObjects[i].position.z += (hdz / hd) * hs * dt;
+          this.horseObjects[i].rotation.y = Math.atan2(hdx, hdz);
+        }
+      }
+    }
+
+    // 5th horse follows directly behind player
+    if (this.horseObjects[4]) {
+      const hx = px;
+      const hz = pz + 1.0;
+      const hdx = hx - this.horseObjects[4].position.x;
+      const hdz = hz - this.horseObjects[4].position.z;
+      const hd  = Math.sqrt(hdx * hdx + hdz * hdz);
+      if (hd > 0.15) {
+        const hs = Math.min(hd * 4, this.player.speed * 1.2);
+        this.horseObjects[4].position.x += (hdx / hd) * hs * dt;
+        this.horseObjects[4].position.z += (hdz / hd) * hs * dt;
+      }
+    }
+  },
+
+  // ── BUILD SINGLE HORSE ────────────────────────────────────
+  buildHorse(x, z) {
+    const group = new THREE.Group();
+    const brownMat = new THREE.MeshStandardMaterial({ color: 0x7a3a10, roughness: 0.9 });
+    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x3a1a05, roughness: 0.9 });
+
+    // Body
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 1.1), brownMat);
+    body.position.set(0, 0.7, 0);
+    body.castShadow = true;
+    group.add(body);
+
+    // Neck
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 0.22), brownMat);
+    neck.position.set(0, 0.98, -0.42);
+    neck.rotation.x = -0.35;
+    neck.castShadow = true;
+    group.add(neck);
+
+    // Head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.38), brownMat);
+    head.position.set(0, 1.22, -0.6);
+    head.castShadow = true;
+    group.add(head);
+
+    // Ears
+    const earGeo = new THREE.BoxGeometry(0.05, 0.1, 0.05);
+    [-0.07, 0.07].forEach(ex => {
+      const ear = new THREE.Mesh(earGeo, brownMat);
+      ear.position.set(ex, 1.36, -0.58);
+      group.add(ear);
+    });
+
+    // Legs (4)
+    const legGeo = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+    [[-0.18, -0.4], [0.18, -0.4], [-0.18, 0.4], [0.18, 0.4]].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(legGeo, darkMat);
+      leg.position.set(lx, 0.25, lz);
+      leg.castShadow = true;
+      group.add(leg);
+    });
+
+    // Tail
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.08), darkMat);
+    tail.position.set(0, 0.78, 0.57);
+    tail.rotation.x = 0.5;
+    group.add(tail);
+
+    group.position.set(x, 0, z);
+    this.scene.add(group);
+    return group;
+  },
+
+  // ── BUILD ALL 5 HORSES AT STABLE ──────────────────────────
+  buildHorses() {
+    const sx = 18, sz = 44;
+    const positions = [
+      [sx - 1, sz + 1], [sx + 1, sz + 1],
+      [sx - 2, sz - 1], [sx + 2, sz - 1],
+      [sx,     sz - 2],
+    ];
+    this.horseObjects = [];
+    for (const [hx, hz] of positions) {
+      this.horseObjects.push(this.buildHorse(hx, hz));
+    }
+    this.showNotification('5 horses ready at the stable!\nThey will follow you south.');
+  },
+
+  // ── SHOW YES/NO CHOICE ────────────────────────────────────
+  showChoice(question, yesLabel, noLabel, yesCallback, noCallback) {
+    this.choiceActive = true;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'choice-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:40',
+      'background:rgba(0,0,0,0.6)',
+      'display:flex', 'flex-direction:column',
+      'align-items:center', 'justify-content:center', 'gap:18px',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:rgba(8,6,2,0.97)',
+      'border:2px solid #c9a84c',
+      'border-radius:14px',
+      'padding:28px 36px',
+      'text-align:center',
+      'max-width:360px',
+      'box-shadow:0 0 30px rgba(0,0,0,0.8)',
+    ].join(';');
+
+    const qText = document.createElement('div');
+    qText.textContent = question;
+    qText.style.cssText = 'font-family:Crimson Text,Georgia,serif;font-size:1.1rem;color:#f5ecd0;line-height:1.6;margin-bottom:20px;';
+    box.appendChild(qText);
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:16px;justify-content:center;';
+
+    const yesBtn = document.createElement('button');
+    yesBtn.textContent = yesLabel;
+    yesBtn.style.cssText = [
+      'padding:10px 24px', 'border-radius:8px',
+      'background:rgba(80,160,80,0.3)', 'border:1.5px solid #80c080',
+      'color:#a0e0a0', 'font-family:Cinzel,serif', 'font-size:0.9rem',
+      'cursor:pointer', 'letter-spacing:0.05em',
+    ].join(';');
+
+    const noBtn = document.createElement('button');
+    noBtn.textContent = noLabel;
+    noBtn.style.cssText = [
+      'padding:10px 24px', 'border-radius:8px',
+      'background:rgba(160,60,60,0.3)', 'border:1.5px solid #c07070',
+      'color:#e0a0a0', 'font-family:Cinzel,serif', 'font-size:0.9rem',
+      'cursor:pointer', 'letter-spacing:0.05em',
+    ].join(';');
+
+    const dismiss = (cb) => {
+      overlay.remove();
+      this.choiceActive = false;
+      this.interactCooldown = 0.5;
+      if (cb) cb();
+    };
+
+    yesBtn.addEventListener('click',      () => dismiss(yesCallback));
+    yesBtn.addEventListener('touchstart', (e) => { e.preventDefault(); dismiss(yesCallback); }, { passive: false });
+    noBtn.addEventListener('click',       () => dismiss(noCallback));
+    noBtn.addEventListener('touchstart',  (e) => { e.preventDefault(); dismiss(noCallback);  }, { passive: false });
+
+    btnRow.appendChild(yesBtn);
+    btnRow.appendChild(noBtn);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  },
+
+  // ── NEEDLE THREADING MINI-GAME ────────────────────────────
+  startWeavingMinigame(onSuccess, onFail) {
+    this.minigameActive = true;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'minigame-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:60',
+      'background:rgba(0,0,0,0.88)',
+      'display:flex', 'flex-direction:column',
+      'align-items:center', 'justify-content:center', 'gap:14px',
+    ].join(';');
+
+    const title = document.createElement('div');
+    title.textContent = 'Thread the Needle';
+    title.style.cssText = 'font-family:Cinzel,serif;color:#c9a84c;font-size:1.5rem;font-weight:700;letter-spacing:0.1em;text-shadow:0 0 12px rgba(201,168,76,0.5);';
+    overlay.appendChild(title);
+
+    const instr = document.createElement('div');
+    instr.textContent = 'Press [E] / Tap when the thread enters the needle eye!';
+    instr.style.cssText = 'font-family:Crimson Text,Georgia,serif;font-style:italic;color:#f0e0b0;font-size:1rem;';
+    overlay.appendChild(instr);
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = 340;
+    canvas.height = 200;
+    canvas.style.cssText = 'border:2px solid #c9a84c;border-radius:10px;background:#12100a;cursor:pointer;touch-action:none;';
+    overlay.appendChild(canvas);
+
+    const status = document.createElement('div');
+    status.style.cssText = 'font-family:Cinzel,serif;color:#a07830;font-size:0.9rem;letter-spacing:0.05em;';
+    overlay.appendChild(status);
+
+    document.body.appendChild(overlay);
+
+    const ctx = canvas.getContext('2d');
+    const NX = 170, NY = 100;
+    const EYE_H = 20, EYE_W = 8; // needle eye dimensions
+    let phase = 0, attemptsLeft = 4, done = false;
+    let rafId = null;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, 340, 200);
+
+      // Thread x position (moves left-right)
+      const threadX = NX + Math.sin(phase) * 120;
+      const inEye = Math.abs(threadX - NX) < EYE_W;
+
+      // Green zone
+      ctx.fillStyle = 'rgba(60,200,60,0.12)';
+      ctx.fillRect(NX - EYE_W, 0, EYE_W * 2, 200);
+      ctx.strokeStyle = 'rgba(60,200,60,0.35)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(NX - EYE_W, 0, EYE_W * 2, 200);
+
+      // Needle shaft
+      ctx.fillStyle = '#d4c070';
+      ctx.fillRect(NX - 4, 15, 8, 170);
+
+      // Needle eye cutout (dark hole)
+      ctx.fillStyle = '#12100a';
+      ctx.fillRect(NX - EYE_W, NY - EYE_H / 2, EYE_W * 2, EYE_H);
+      ctx.strokeStyle = '#8a7030';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(NX - EYE_W, NY - EYE_H / 2, EYE_W * 2, EYE_H);
+
+      // Needle point
+      ctx.fillStyle = '#d4c070';
+      ctx.beginPath();
+      ctx.moveTo(NX - 4, 185);
+      ctx.lineTo(NX + 4, 185);
+      ctx.lineTo(NX, 198);
+      ctx.fill();
+
+      // Thread line
+      ctx.strokeStyle = inEye ? '#60ff80' : '#c8a040';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(threadX, 0);
+      ctx.lineTo(threadX, 200);
+      ctx.stroke();
+
+      // Thread dot
+      ctx.fillStyle = inEye ? '#60ff80' : '#ffe060';
+      ctx.beginPath();
+      ctx.arc(threadX, NY, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      status.textContent = 'Attempts: ' + attemptsLeft;
+
+      if (!done) {
+        phase += 0.038;
+        rafId = requestAnimationFrame(draw);
+      }
+    };
+
+    const tryThread = () => {
+      if (done) return;
+      const threadX = NX + Math.sin(phase) * 120;
+      const inEye   = Math.abs(threadX - NX) < EYE_W;
+
+      if (inEye) {
+        done = true;
+        cancelAnimationFrame(rafId);
+        canvas.style.borderColor = '#60ff80';
+        status.textContent = 'Threaded! Well done!';
+        status.style.color = '#60ff80';
+        setTimeout(() => {
+          overlay.remove();
+          this.minigameActive = false;
+          onSuccess();
+        }, 700);
+      } else {
+        attemptsLeft--;
+        canvas.style.borderColor = '#ff4040';
+        setTimeout(() => { canvas.style.borderColor = '#c9a84c'; }, 300);
+        if (attemptsLeft <= 0) {
+          done = true;
+          cancelAnimationFrame(rafId);
+          status.textContent = 'Missed — speak to Benjamin to try again.';
+          status.style.color = '#ff8080';
+          setTimeout(() => {
+            overlay.remove();
+            this.minigameActive = false;
+            onFail();
+          }, 1200);
+        }
+      }
+    };
+
+    canvas.addEventListener('click', tryThread);
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); tryThread(); }, { passive: false });
+
+    const keyHandler = (e) => {
+      if (e.key === 'e' || e.key === 'E' || e.key === ' ') {
+        e.preventDefault();
+        tryThread();
+        if (done) window.removeEventListener('keydown', keyHandler);
+      }
+      if (e.key === 'Escape') {
+        done = true;
+        cancelAnimationFrame(rafId);
+        overlay.remove();
+        this.minigameActive = false;
+        window.removeEventListener('keydown', keyHandler);
+        onFail();
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+
+    draw();
+  },
+
+  // ── COMPASS ───────────────────────────────────────────────
+  updateCompass() {
+    if (!this.elCompassFace) return;
+    // Rotate face so that 'N' label points toward world north (-z)
+    // player.facingAngle: 0 = facing south (+z), PI = facing north (-z)
+    const deg = (Math.PI - this.player.facingAngle) * (180 / Math.PI);
+    this.elCompassFace.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
+  },
+
+  // ── SATCHEL HUD ───────────────────────────────────────────
+  updateSatchelHUD() {
+    const elLetters = document.getElementById('satchel-letters');
+    const elCloth   = document.getElementById('satchel-cloth');
+    const elTents   = document.getElementById('satchel-tents');
+    const elCC      = document.getElementById('satchel-cloth-count');
+    const elTC      = document.getElementById('satchel-tent-count');
+
+    if (elLetters) elLetters.classList.toggle('hidden', !this.hasLetters);
+    if (elCloth) {
+      elCloth.classList.toggle('hidden', this.inventory.tentCloth === 0);
+      if (elCC) elCC.textContent = this.inventory.tentCloth;
+    }
+    if (elTents) {
+      elTents.classList.toggle('hidden', this.inventory.tents === 0);
+      if (elTC) elTC.textContent = this.inventory.tents;
+    }
+
+    // Show satchel bar if player has letters
+    const satchel = document.getElementById('satchel-hud');
+    if (satchel && this.hasLetters) satchel.classList.remove('hidden');
   },
 };
 

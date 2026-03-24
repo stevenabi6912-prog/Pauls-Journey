@@ -225,13 +225,13 @@ html, body {
   pointer-events: none;
 }
 
-/* Joystick — full right half, spawn-on-touch */
+/* Joystick — bottom-right, spawn-on-touch */
 #joystick-zone {
   position: fixed;
   right: 0;
-  top: 0;
-  width: 50vw;
-  height: 100%;
+  bottom: 0;
+  width: 55vw;
+  height: 60vh;
   z-index: 15;
   pointer-events: all;
 }
@@ -264,14 +264,14 @@ html, body {
 
 #action-buttons {
   position: fixed;
-  bottom: 32px;
-  left: 20px;
+  bottom: 28px;
+  left: 16px;
   display: flex;
   flex-direction: row;
-  gap: 16px;
+  gap: 14px;
   align-items: flex-end;
   pointer-events: none;
-  z-index: 15;
+  z-index: 16;
 }
 
 #jump-btn {
@@ -469,28 +469,40 @@ body.touch-device #interact-prompt { display: none  !important; }
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  background: rgba(10, 6, 2, 0.88);
+  background: rgba(10, 6, 2, 0.92);
   border: 1.5px solid rgba(201, 168, 76, 0.7);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 5px 16px 5px 12px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   pointer-events: none;
   white-space: nowrap;
-  box-shadow: 0 0 12px rgba(201, 168, 76, 0.2);
+  box-shadow: 0 0 14px rgba(201, 168, 76, 0.25);
   animation: satchelAppear 0.4s ease forwards;
 }
 
-#satchel-icon {
-  font-size: 1rem;
+#satchel-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c9a84c;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
 }
 
-#satchel-label {
-  font-family: 'Cinzel', serif;
-  font-size: 0.78rem;
-  color: #c9a84c;
-  letter-spacing: 0.05em;
+.satchel-divider {
+  color: rgba(201, 168, 76, 0.35);
+  font-size: 0.8rem;
+}
+
+.satchel-item {
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 0.85rem;
+  color: #f0e0b0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 @keyframes satchelAppear {

@@ -597,6 +597,11 @@ const Game = {
 
   // ── INPUT ─────────────────────────────────────────────────
   setupInput() {
+    // Detect touch device — works on real phones AND browser emulation
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      document.body.classList.add('touch-device');
+    }
+
     // Keyboard
     window.addEventListener('keydown', (e) => {
       this.keys[e.key] = true;
@@ -607,6 +612,10 @@ const Game = {
       if (e.key === ' ') {
         e.preventDefault();
         this.tryJump();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.dismissDialogue();
       }
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) !== -1) {
         e.preventDefault();
@@ -623,15 +632,23 @@ const Game = {
       this.advanceDialogue();
     });
 
-    // Interact button (mobile)
+    // Interact button (mobile) — touchstart so it fires while joystick is held
     const interactBtn = document.getElementById('interact-btn');
-    interactBtn.addEventListener('click', () => {
+    interactBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
       this.tryInteract();
-    });
+    }, { passive: false });
+    interactBtn.addEventListener('click', () => { this.tryInteract(); }); // desktop fallback
 
     // Jump button (mobile)
     const jumpBtn = document.getElementById('jump-btn');
-    if (jumpBtn) jumpBtn.addEventListener('click', () => { this.tryJump(); });
+    if (jumpBtn) {
+      jumpBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.tryJump();
+      }, { passive: false });
+      jumpBtn.addEventListener('click', () => { this.tryJump(); }); // desktop fallback
+    }
 
     // Joystick
     this.setupJoystick();
@@ -642,22 +659,23 @@ const Game = {
     const base  = document.getElementById('joystick-base');
     const thumb = document.getElementById('joystick-thumb');
 
-    let originX = 0;
-    let originY = 0;
-    const DEAD  = 45; // max radius in px
+    let originX   = 0;
+    let originY   = 0;
+    let joyTouchId = null;  // track which finger owns the joystick
+    const DEAD    = 50;     // max radius px
 
     zone.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      const touch = e.changedTouches[0];
-      originX = touch.clientX;
-      originY = touch.clientY;
+      // Only claim the first unclaimed touch
+      if (joyTouchId !== null) return;
+      const touch    = e.changedTouches[0];
+      joyTouchId     = touch.identifier;
+      originX        = touch.clientX;
+      originY        = touch.clientY;
 
-      // Position base centered on touch point
       base.style.left    = (originX - 45) + 'px';
       base.style.top     = (originY - 45) + 'px';
       base.style.opacity = '1';
-
-      // Reset thumb to center
       thumb.style.transform = 'translate(-50%, -50%)';
 
       this.joy.active = true;
@@ -666,27 +684,33 @@ const Game = {
 
     zone.addEventListener('touchmove', (e) => {
       e.preventDefault();
-      if (!this.joy.active) return;
-      const touch = e.changedTouches[0];
-      const dx  = touch.clientX - originX;
-      const dy  = touch.clientY - originY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const clamped = Math.min(dist, DEAD);
-      const nx = dist > 0 ? dx / dist : 0;
-      const ny = dist > 0 ? dy / dist : 0;
+      for (const touch of e.changedTouches) {
+        if (touch.identifier !== joyTouchId) continue;
+        const dx      = touch.clientX - originX;
+        const dy      = touch.clientY - originY;
+        const dist    = Math.sqrt(dx * dx + dy * dy);
+        const clamped = Math.min(dist, DEAD);
+        const nx = dist > 0 ? dx / dist : 0;
+        const ny = dist > 0 ? dy / dist : 0;
 
-      thumb.style.transform = 'translate(calc(-50% + ' + (nx * clamped) + 'px), calc(-50% + ' + (ny * clamped) + 'px))';
+        thumb.style.transform =
+          'translate(calc(-50% + ' + (nx * clamped) + 'px), calc(-50% + ' + (ny * clamped) + 'px))';
 
-      this.joy.angle = Math.atan2(dy, dx);
-      this.joy.mag   = Math.min(dist / DEAD, 1);
+        this.joy.angle = Math.atan2(dy, dx);
+        this.joy.mag   = Math.min(dist / DEAD, 1);
+      }
     }, { passive: false });
 
     const endJoy = (e) => {
       e.preventDefault();
-      thumb.style.transform = 'translate(-50%, -50%)';
-      base.style.opacity    = '0';
-      this.joy.mag    = 0;
-      this.joy.active = false;
+      for (const touch of e.changedTouches) {
+        if (touch.identifier !== joyTouchId) continue;
+        joyTouchId            = null;
+        thumb.style.transform = 'translate(-50%, -50%)';
+        base.style.opacity    = '0';
+        this.joy.mag          = 0;
+        this.joy.active       = false;
+      }
     };
 
     zone.addEventListener('touchend',    endJoy, { passive: false });
@@ -1028,14 +1052,19 @@ const Game = {
       } else if (this.hasLetters && npcObj.data.dialoguesMissing) {
         dialogues = npcObj.data.dialoguesMissing;
       }
-    } else if (npcObj.data.onComplete === 'recruit_companion' && this.recruitedNPCs[id]) {
-      dialogues = [{ speaker: npcObj.data.name, text: '"I am ready, Saul. We leave when you give the word."' }];
+    } else if (npcObj.data.onComplete === 'recruit_companion') {
+      if (this.recruitedNPCs[id]) {
+        dialogues = [{ speaker: npcObj.data.name, text: '"I am ready, Saul. We leave when you give the word."' }];
+      } else if (this.hasLetters && npcObj.data.dialoguesAlt) {
+        dialogues = npcObj.data.dialoguesAlt;
+      }
+      // else: soldier mode — use default dialogues
     } else if (id === 'stable_master' && this.horsesAcquired) {
       dialogues = [{ speaker: 'Elias', text: '"Your four horses are in the pen and ready to ride. May God grant you a swift journey to Damascus."' }];
     } else if (id === 'stable_master' && this.inventory.shekels < 15) {
       dialogues = [{ speaker: 'Elias', text: '"Four horses for the Damascus road \u2014 that\'s 15 shekels. Come back when you have the coin. You can earn it making and selling tents."' }];
     } else if (id === 'loom_keeper' && this.inventory.tentCloth === 0) {
-      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave you a fine tent. See Miriam just up the road \u2014 she sells cloth for 2 shekels a bolt."' }];
+      dialogues = [{ speaker: 'Benjamin', text: '"Bring me tent cloth and I will weave you a fine tent. Find Miriam \u2014 she is on the main road just north of here. She sells cloth for 2 shekels a bolt."' }];
     } else if (id === 'joseph_buyer' && this.inventory.tents === 0) {
       dialogues = [{ speaker: 'Joseph', text: '"Do you have any tents to sell? I pay 5 shekels each. Bring me one and we have a deal."' }];
     } else if (id === 'miriam_cloth' && this.inventory.shekels < 2) {
@@ -1140,7 +1169,7 @@ const Game = {
       if (cb === 'receive_letters') {
         this.receiveLetters();
 
-      } else if (cb === 'recruit_companion' && !this.recruitedNPCs[nid]) {
+      } else if (cb === 'recruit_companion' && !this.recruitedNPCs[nid] && this.hasLetters) {
         this.recruitedNPCs[nid] = true;
         this.companionsRecruited++;
         this.showNotification('Companion ' + this.companionsRecruited + ' of 4 recruited!\n' + this.currentDialogueNPC.data.name + ' will join you.');
@@ -1195,6 +1224,19 @@ const Game = {
       }
     }
 
+    this.currentDialogueNPC = null;
+    this.interactCooldown   = 0.5;
+  },
+
+  // ── DISMISS DIALOGUE (no callback — e.g. Esc to decline) ──
+  dismissDialogue() {
+    if (!this.dialogueActive) return;
+    if (this.typeTimer) { clearTimeout(this.typeTimer); this.typeTimer = null; }
+    this.dialogueActive   = false;
+    this.dialogueTyping   = false;
+    this.elDialogueBox.classList.add('hidden');
+    this.elDialogueText.textContent    = '';
+    this.elDialogueSpeaker.textContent = '';
     this.currentDialogueNPC = null;
     this.interactCooldown   = 0.5;
   },

@@ -177,42 +177,58 @@ var WORLD = {
       onComplete: 'gate_open',
     },
 
-    // ── Travel Companions (find all 4) ──────────────────────
+    // ── Temple Soldiers (become companions after letters) ────
     {
-      id: 'barnabas', name: 'Barnabas',
+      id: 'barnabas', name: 'Temple Soldier',
       x: -15.5, z: 22,
-      bodyColor: 0x6a4a8a, accentColor: 0xaa80cc, headColor: 0xb07840,
+      bodyColor: 0x5a4a3a, accentColor: 0x8a6a40, headColor: 0xb07840,
       dialogues: [
+        { speaker: 'Temple Soldier', text: '"Halt, traveler. You are near the Temple courts. Keep to the road and move along."' },
+        { speaker: 'Temple Soldier', text: '"By order of the Sanhedrin, no disturbances in the Temple district. Go about your business."' },
+      ],
+      dialoguesAlt: [
         { speaker: 'Barnabas', text: '"Saul! I have heard you carry letters for Damascus. It is a long road to travel without companions."' },
         { speaker: 'Barnabas', text: '"I will join you on this mission. My family has connections in Damascus \u2014 I know the road well. Count me in." He grips your arm in agreement.' },
       ],
       onComplete: 'recruit_companion',
     },
     {
-      id: 'lucius', name: 'Lucius of Cyrene',
+      id: 'lucius', name: 'Temple Soldier',
       x: -14, z: 35,
-      bodyColor: 0x4a3a6a, accentColor: 0x8a7aaa, headColor: 0x8a5830,
+      bodyColor: 0x4a4a3a, accentColor: 0x7a6a50, headColor: 0x8a5830,
       dialogues: [
+        { speaker: 'Temple Soldier', text: '"Move along, citizen. I am on duty. No loitering in the road."' },
+        { speaker: 'Temple Soldier', text: '"Jerusalem is under the authority of the Sanhedrin. Mind your step."' },
+      ],
+      dialoguesAlt: [
         { speaker: 'Lucius', text: '"Shalom, Saul. I am Lucius, from Cyrene. I have traveled many long roads and know how to keep pace on a journey."' },
         { speaker: 'Lucius', text: '"If you travel for the Sanhedrin, I will lend my company. I am not afraid of the road." He straightens his cloak. "I will go with you."' },
       ],
       onComplete: 'recruit_companion',
     },
     {
-      id: 'silas', name: 'Silas',
+      id: 'silas', name: 'Temple Soldier',
       x: 16, z: 18,
-      bodyColor: 0x3a5a4a, accentColor: 0x6a9a7a, headColor: 0xb08060,
+      bodyColor: 0x4a5040, accentColor: 0x7a7060, headColor: 0xb08060,
       dialogues: [
+        { speaker: 'Temple Soldier', text: '"State your business, traveler. Keep moving if you have none here."' },
+        { speaker: 'Temple Soldier', text: '"The Temple guard keeps order in these streets. Stay on the road and cause no trouble."' },
+      ],
+      dialoguesAlt: [
         { speaker: 'Silas', text: '"The Damascus road? I know it well \u2014 my family is from there. Three days through Judea and into Syria."' },
         { speaker: 'Silas', text: '"It has been too long since I\'ve seen Damascus. I will join your company, Saul. The journey will be safer with more men."' },
       ],
       onComplete: 'recruit_companion',
     },
     {
-      id: 'manaen', name: 'Manaen',
+      id: 'manaen', name: 'Temple Soldier',
       x: 3, z: 44,
-      bodyColor: 0x8a6040, accentColor: 0xba9060, headColor: 0xc09060,
+      bodyColor: 0x5a4030, accentColor: 0x9a7040, headColor: 0xc09060,
       dialogues: [
+        { speaker: 'Temple Soldier', text: '"Peace, traveler. Keep the law and you have nothing to fear in this city."' },
+        { speaker: 'Temple Soldier', text: '"The gates close at sundown. Make certain you are within the walls before dark."' },
+      ],
+      dialoguesAlt: [
         { speaker: 'Manaen', text: '"I am a craftsman \u2014 a tent-maker by trade, like yourself, Saul. I can tend horses and make camp on the road."' },
         { speaker: 'Manaen', text: '"\"Whatsoever thy hand findeth to do, do it with thy might.\" \u2014 Ecclesiastes 9:10. I am with you. Let me know when we depart."' },
       ],
@@ -225,14 +241,15 @@ var WORLD = {
       x: 3, z: 31,
       bodyColor: 0xb06080, accentColor: 0xe090b0, headColor: 0xb07840,
       dialogues: [
-        { speaker: 'Miriam', text: '"Saul! I hear you need supplies for a journey. I sell the finest tent cloth in Jerusalem \u2014 2 shekels a bolt."' },
-        { speaker: 'Miriam', text: '"Take the cloth to the weaving loom just east of here and Benjamin will weave you a proper tent. Then you can sell it." She holds out a bolt of cloth.' },
+        { speaker: 'Miriam', text: '"Saul! I hear you need supplies for a journey. I have the finest tent cloth in Jerusalem."' },
+        { speaker: 'Miriam', text: '"Benjamin the Weaver is at the craftsmen\'s quarter, south past the market. He will weave it into a tent you can sell."' },
+        { speaker: 'Miriam', text: '"One bolt of tent cloth \u2014 2 shekels. Press [E] to purchase, or walk away to decline."' },
       ],
       onComplete: 'buy_cloth',
     },
     {
       id: 'loom_keeper', name: 'Benjamin the Weaver',
-      x: 14, z: 40.5,
+      x: 8, z: 36,
       bodyColor: 0x506870, accentColor: 0x8098a8, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Benjamin', text: '"Ah, you have tent cloth! Bring it here and I will weave it into a fine tent for you. It will fetch a good price."' },
@@ -329,11 +346,11 @@ var WORLD = {
     { x: 19,  z: 33,  w: 5, d: 4, h: 3.0, color: 0x9a6035, roofColor: 0x7a3818 },
     { x: 22,  z: 43,  w: 5, d: 4, h: 2.8, color: 0xa06440, roofColor: 0x7a3820 },
 
-    // ── Central well (z:22) ─────────────────────────────────
-    { x: 0, z: 22, w: 1.6, d: 1.6, h: 0.85, color: 0x7a5a30 },
-    { x: -0.65, z: 22, w: 0.12, d: 0.12, h: 2.3, color: 0x5a3a18 },
-    { x:  0.65, z: 22, w: 0.12, d: 0.12, h: 2.3, color: 0x5a3a18 },
-    { x: 0,     z: 22, w: 1.4,  d: 0.12, h: 0.12, color: 0x5a3a18 },
+    // ── Central well (off road, beside main path) ───────────
+    { x: 5.5, z: 19, w: 1.6, d: 1.6, h: 0.85, color: 0x7a5a30 },
+    { x: 4.85, z: 19, w: 0.12, d: 0.12, h: 2.3, color: 0x5a3a18 },
+    { x: 6.15, z: 19, w: 0.12, d: 0.12, h: 2.3, color: 0x5a3a18 },
+    { x: 5.5,  z: 19, w: 1.4,  d: 0.12, h: 0.12, color: 0x5a3a18 },
 
     // ── Craftsmen's quarter ─────────────────────────────────
     { x:  7, z: 33, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
@@ -470,7 +487,7 @@ var WORLD = {
     { minX: 3.3,  maxX: 3.7,  minZ: 53.15,  maxZ: 53.65  },
 
     // ── Central well ────────────────────────────────────────
-    { minX: -0.9, maxX:  0.9, minZ: 21.2,  maxZ: 22.8  },
+    { minX: 4.6, maxX: 6.4, minZ: 18.2, maxZ: 19.8 },
 
     // ── Western residential ─────────────────────────────────
     { minX: -20.5, maxX: -15.5, minZ:  9,  maxZ: 13 },

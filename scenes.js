@@ -102,7 +102,7 @@ var WORLD = {
       bodyColor: 0x5a4a8a, accentColor: 0x8a7aaa, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Weaver', text: '"I weave cloth from the finest wool of Judea and linen from Egypt. Each thread placed with care."' },
-        { speaker: 'Weaver', text: '"You know, tent-making is an honest trade. Paul himself was a tent-maker before his travels."' },
+        { speaker: 'Weaver', text: '"A tent-maker yourself! Your hands know this craft well. It will serve you greatly on the long road to Damascus."' },
       ],
       onComplete: null,
     },
@@ -314,8 +314,8 @@ var WORLD = {
     { x: -18, z: 11,  w: 5, d: 4, h: 3.2, color: 0xa06a40, roofColor: 0x7a4820 },
     { x: -23, z: 11,  w: 5, d: 4, h: 2.8, color: 0x8a5a30, roofColor: 0x6a3818 },
     { x: -28, z: 10,  w: 5, d: 4, h: 3.0, color: 0x9a6438, roofColor: 0x7a4420 },
-    { x: -19, z: 23,  w: 5, d: 4, h: 3.2, color: 0xa07040, roofColor: 0x7a4820 },
-    { x: -25, z: 23,  w: 5, d: 4, h: 2.8, color: 0x8a6035, roofColor: 0x6a3818 },
+    { x: -19, z: 27,  w: 5, d: 4, h: 3.2, color: 0xa07040, roofColor: 0x7a4820 },
+    { x: -25, z: 27,  w: 5, d: 4, h: 2.8, color: 0x8a6035, roofColor: 0x6a3818 },
     { x: -18, z: 33,  w: 5, d: 4, h: 3.0, color: 0xa06435, roofColor: 0x7a4018 },
     { x: -24, z: 35,  w: 5, d: 4, h: 2.6, color: 0x8a5a2a, roofColor: 0x6a3010 },
     { x: -20, z: 43,  w: 5, d: 4, h: 3.0, color: 0xa06040, roofColor: 0x7a3820 },
@@ -324,8 +324,8 @@ var WORLD = {
     // ── Eastern residential ─────────────────────────────────
     { x: 19,  z: 11,  w: 5, d: 4, h: 3.0, color: 0x9a6438, roofColor: 0x7a3818 },
     { x: 25,  z: 11,  w: 5, d: 4, h: 2.8, color: 0x8a5a30, roofColor: 0x6a3010 },
-    { x: 20,  z: 23,  w: 5, d: 4, h: 3.2, color: 0xa06840, roofColor: 0x7a4020 },
-    { x: 26,  z: 21,  w: 5, d: 4, h: 2.8, color: 0x8a5838, roofColor: 0x6a3818 },
+    { x: 20,  z: 27,  w: 5, d: 4, h: 3.2, color: 0xa06840, roofColor: 0x7a4020 },
+    { x: 26,  z: 27,  w: 5, d: 4, h: 2.8, color: 0x8a5838, roofColor: 0x6a3818 },
     { x: 19,  z: 33,  w: 5, d: 4, h: 3.0, color: 0x9a6035, roofColor: 0x7a3818 },
     { x: 22,  z: 43,  w: 5, d: 4, h: 2.8, color: 0xa06440, roofColor: 0x7a3820 },
 
@@ -336,8 +336,8 @@ var WORLD = {
     { x: 0,     z: 22, w: 1.4,  d: 0.12, h: 0.12, color: 0x5a3a18 },
 
     // ── Craftsmen's quarter ─────────────────────────────────
-    { x:  7, z: 37, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
-    { x: -7, z: 37, w: 5, d: 4, h: 3.0, color: 0x6a5a38, roofColor: 0x4a3818 },
+    { x:  7, z: 33, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
+    { x: -7, z: 33, w: 5, d: 4, h: 3.0, color: 0x6a5a38, roofColor: 0x4a3818 },
     { x: 12, z: 43, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
 
     // ── Stable complex ──────────────────────────────────────
@@ -476,8 +476,8 @@ var WORLD = {
     { minX: -20.5, maxX: -15.5, minZ:  9,  maxZ: 13 },
     { minX: -25.5, maxX: -20.5, minZ:  9,  maxZ: 13 },
     { minX: -30.5, maxX: -25.5, minZ:  8,  maxZ: 12 },
-    { minX: -21.5, maxX: -16.5, minZ: 21,  maxZ: 25 },
-    { minX: -27.5, maxX: -22.5, minZ: 21,  maxZ: 25 },
+    { minX: -21.5, maxX: -16.5, minZ: 25,  maxZ: 29 },
+    { minX: -27.5, maxX: -22.5, minZ: 25,  maxZ: 29 },
     { minX: -20.5, maxX: -15.5, minZ: 31,  maxZ: 35 },
     { minX: -26.5, maxX: -21.5, minZ: 33,  maxZ: 37 },
     { minX: -22.5, maxX: -17.5, minZ: 41,  maxZ: 45 },
@@ -486,14 +486,14 @@ var WORLD = {
     // ── Eastern residential ─────────────────────────────────
     { minX: 16.5, maxX: 21.5, minZ:  9,  maxZ: 13 },
     { minX: 22.5, maxX: 27.5, minZ:  9,  maxZ: 13 },
-    { minX: 17.5, maxX: 22.5, minZ: 21,  maxZ: 25 },
-    { minX: 23.5, maxX: 28.5, minZ: 19,  maxZ: 23 },
+    { minX: 17.5, maxX: 22.5, minZ: 25,  maxZ: 29 },
+    { minX: 23.5, maxX: 28.5, minZ: 25,  maxZ: 29 },
     { minX: 16.5, maxX: 21.5, minZ: 31,  maxZ: 35 },
     { minX: 19.5, maxX: 24.5, minZ: 41,  maxZ: 45 },
 
     // ── Craftsmen's quarter ─────────────────────────────────
-    { minX:  4,   maxX: 10,   minZ: 34.5, maxZ: 39.5 },
-    { minX: -9.5, maxX: -4.5, minZ: 35,   maxZ: 39   },
+    { minX:  4,   maxX: 10,   minZ: 30.5, maxZ: 35.5 },
+    { minX: -9.5, maxX: -4.5, minZ: 31,   maxZ: 35   },
     { minX:  9.5, maxX: 14.5, minZ: 41,   maxZ: 45   },
 
     // ── Stable ──────────────────────────────────────────────

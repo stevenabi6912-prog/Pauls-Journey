@@ -55,6 +55,7 @@ const Game = {
   gateUnlocked:        false,
   templeInside:        false,
   templeTransitioning: false,
+  templeLight:         null,
   damascusTriggered:   false,
   interactCooldown:    0,
   gateBlockCooldown:   0,
@@ -788,14 +789,16 @@ const Game = {
 
       // Walk bob
       this.player.animTime += dt * 8;
-      this.playerGroup.position.y = Math.abs(Math.sin(this.player.animTime)) * 0.06 + this.player.jumpY;
+      const ty1 = this.getTerrainY(pos.x, pos.z);
+      this.playerGroup.position.y = ty1 + Math.abs(Math.sin(this.player.animTime)) * 0.06 + this.player.jumpY;
 
     } else {
       this.player.moving = false;
 
       // Breathing idle
       this.player.animTime += dt * 1.5;
-      this.playerGroup.position.y = Math.sin(this.player.animTime) * 0.012 + this.player.jumpY;
+      const ty2 = this.getTerrainY(pos.x, pos.z);
+      this.playerGroup.position.y = ty2 + Math.sin(this.player.animTime) * 0.012 + this.player.jumpY;
     }
 
     // Sync group position
@@ -856,12 +859,27 @@ const Game = {
     return false;
   },
 
+  // ── TERRAIN ELEVATION ─────────────────────────────────────
+  getTerrainY(x, z) {
+    // Grand staircase — walk up automatically (no jump needed)
+    if (z < -8.1 && z > -10.75 && Math.abs(x) < 5.6) {
+      if (z < -10.15) return 1.10;
+      if (z < -9.63)  return 0.88;
+      if (z < -9.11)  return 0.66;
+      if (z < -8.59)  return 0.44;
+      return 0.22;
+    }
+    // Temple platform surface
+    if (z < -10.75 && Math.abs(x) < 11) return 1.2;
+    return 0;
+  },
+
   // ── CAMERA ────────────────────────────────────────────────
   updateCamera(dt) {
     const p = this.player.pos;
     const targetX = p.x;
-    const targetY = this.templeInside ? 6.5 : this.cam.offsetY;
-    const targetZ = p.z + (this.templeInside ? 7.5 : this.cam.offsetZ);
+    const targetY = this.templeInside ? 15 : this.cam.offsetY;
+    const targetZ = p.z + (this.templeInside ? 1.5 : this.cam.offsetZ);
 
     const k = 0.07;
     this.cam.pos.x += (targetX - this.cam.pos.x) * k;
@@ -869,7 +887,7 @@ const Game = {
     this.cam.pos.z += (targetZ - this.cam.pos.z) * k;
 
     this.camera.position.copy(this.cam.pos);
-    this.camera.lookAt(p.x, 0.8, p.z - 1.5);
+    this.camera.lookAt(p.x, this.templeInside ? 1.2 : 0.8, p.z - (this.templeInside ? 0.5 : 1.5));
   },
 
   // ── NPC FACING ────────────────────────────────────────────
@@ -1204,8 +1222,16 @@ const Game = {
       // Teleport player inside entrance
       this.player.pos.set(0, 0, -13);
       this.playerGroup.position.set(0, 0, -13);
-      // Snap camera to avoid lerp glitch
-      this.cam.pos.set(0, 6.5, -13 + 7.5);
+      // Snap camera overhead to avoid lerp glitch
+      this.cam.pos.set(0, 15, -13 + 1.5);
+
+      // Add warm torch light inside temple
+      if (!this.templeLight) {
+        const tl = new THREE.PointLight(0xffdd88, 3.0, 28);
+        tl.position.set(0, 5.5, -18);
+        this.scene.add(tl);
+        this.templeLight = tl;
+      }
 
       document.getElementById('location-name').textContent = 'Holy Temple';
       document.getElementById('scripture-ref').textContent = 'Acts 9:1';
@@ -1223,6 +1249,9 @@ const Game = {
     requestAnimationFrame(() => { ov.style.background = 'rgba(0,0,0,1)'; });
 
     setTimeout(() => {
+      // Remove temple light
+      if (this.templeLight) { this.scene.remove(this.templeLight); this.templeLight = null; }
+
       // Teleport player just outside temple
       this.player.pos.set(0, 0, -9);
       this.playerGroup.position.set(0, 0, -9);

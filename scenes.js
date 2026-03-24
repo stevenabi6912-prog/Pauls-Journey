@@ -250,7 +250,7 @@ var WORLD = {
     },
     {
       id: 'loom_keeper', name: 'Benjamin the Weaver',
-      x: 14, z: 40,
+      x: 13, z: 36,
       trueName: 'Benjamin',
       bodyColor: 0x506870, accentColor: 0x8098a8, headColor: 0xb07840,
       dialogues: [
@@ -271,7 +271,7 @@ var WORLD = {
     },
     {
       id: 'stable_master', name: 'Elias the Stable Master',
-      x: 16, z: 44,
+      x: 21, z: 45,
       bodyColor: 0x4a5040, accentColor: 0x7a8070, headColor: 0xb07840,
       dialogues: [
         { speaker: 'Elias', text: '"Fine horses for the Damascus road! I have four strong animals ready. They are well-fed and rested."' },
@@ -307,7 +307,6 @@ var WORLD = {
     // ── Front colonnade (5 columns) ─────────────────────────
     { x: -4, z: -11.4, w: 0.65, d: 0.65, h: 6.5, color: 0xf0ead0 },
     { x: -2, z: -11.4, w: 0.65, d: 0.65, h: 6.5, color: 0xf0ead0 },
-    { x:  0, z: -11.4, w: 0.65, d: 0.65, h: 6.5, color: 0xf0ead0 },
     { x:  2, z: -11.4, w: 0.65, d: 0.65, h: 6.5, color: 0xf0ead0 },
     { x:  4, z: -11.4, w: 0.65, d: 0.65, h: 6.5, color: 0xf0ead0 },
 
@@ -357,7 +356,7 @@ var WORLD = {
     // ── Craftsmen's quarter ─────────────────────────────────
     { x:  7, z: 33, w: 6, d: 5, h: 3.5, color: 0x7a5a40, roofColor: 0x5a3a20 },
     { x: -7, z: 33, w: 5, d: 4, h: 3.0, color: 0x6a5a38, roofColor: 0x4a3818 },
-    { x: 17, z: 43, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
+    { x: 11, z: 40, w: 5, d: 4, h: 3.5, color: 0x5a6a7a, roofColor: 0x3a4a5a },
 
     // ── Stable complex ──────────────────────────────────────
     { x: 22, z: 45, w: 10, d: 8,  h: 3.0, color: 0x6a5040, roofColor: 0x4a3020 },
@@ -373,12 +372,12 @@ var WORLD = {
 
   paths: [
     { x: 0,   z: 15,   w: 4,   d: 86,  color: 0x9a8870 },  // main N-S (z -28 to 58)
-    { x: 0,   z: 5,    w: 65,  d: 2.5, color: 0x9a8870 },  // upper E-W
-    { x: 0,   z: 22,   w: 65,  d: 2.5, color: 0x9a8870 },  // central E-W
-    { x: 0,   z: 38,   w: 45,  d: 2.5, color: 0x9a8870 },  // southern E-W
-    { x: -14, z: 28,   w: 2.5, d: 30,  color: 0x8a7860 },  // west alley
-    { x:  14, z: 28,   w: 2.5, d: 30,  color: 0x8a7860 },  // east alley
-    { x:  14, z: 44,   w: 2.5, d: 14,  color: 0x8a7860 },  // stable approach
+    { x: 0,   z: 5,    w: 65,  d: 2.5, color: 0x9a8870, y: 0.065 },  // upper E-W
+    { x: 0,   z: 22,   w: 65,  d: 2.5, color: 0x9a8870, y: 0.065 },  // central E-W
+    { x: 0,   z: 38,   w: 45,  d: 2.5, color: 0x9a8870, y: 0.065 },  // southern E-W
+    { x: -14, z: 28,   w: 2.5, d: 30,  color: 0x8a7860, y: 0.065 },  // west alley
+    { x:  14, z: 28,   w: 2.5, d: 30,  color: 0x8a7860, y: 0.065 },  // east alley
+    { x:  14, z: 44,   w: 2.5, d: 14,  color: 0x8a7860, y: 0.065 },  // stable approach
     { x: 0,   z: -15.5, w: 10,  d: 5,  color: 0xd8d0a0 },  // temple courtyard
   ],
 
@@ -387,8 +386,8 @@ var WORLD = {
     { x: -12, z: -2 }, { x: 12, z: -2 },
     { x: -11, z:  9 }, { x: 11, z:  9 },
     { x: -13, z: 15 }, { x: 13, z: 15 },
-    { x: -12, z: 22 }, { x: 12, z: 22 },
-    { x: -13, z: 30 }, { x: 13, z: 30 },
+    { x: -12, z: 20 }, { x: 12, z: 20 },
+    { x: -16, z: 30 }, { x: 16, z: 30 },
     { x: -12, z: 40 }, { x: 12, z: 40 },
     { x: -13, z: 50 }, { x: 13, z: 50 },
     { x: -22, z: 17 }, { x: 22, z: 17 },
@@ -452,7 +451,6 @@ var WORLD = {
     // ── Temple front columns (5) — entrance gap at x:±0.9 ──
     { minX: -4.33, maxX: -3.67, minZ: -11.73, maxZ: -11.07 },
     { minX: -2.33, maxX: -1.67, minZ: -11.73, maxZ: -11.07 },
-    { minX: -0.33, maxX:  0.33, minZ: -11.73, maxZ: -11.07 },
     { minX:  1.67, maxX:  2.33, minZ: -11.73, maxZ: -11.07 },
     { minX:  3.67, maxX:  4.33, minZ: -11.73, maxZ: -11.07 },
 
@@ -532,7 +530,7 @@ var WORLD = {
     // ── Craftsmen's quarter ─────────────────────────────────
     { minX:  4,   maxX: 10,   minZ: 30.5, maxZ: 35.5 },
     { minX: -9.5, maxX: -4.5, minZ: 31,   maxZ: 35   },
-    { minX: 14.5, maxX: 19.5, minZ: 41,   maxZ: 45   },
+    { minX:  8.5, maxX: 13.5, minZ: 38,   maxZ: 42   },
 
     // ── Stable ──────────────────────────────────────────────
     { minX: 17, maxX: 27, minZ: 41, maxZ: 49 },

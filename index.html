@@ -33,22 +33,58 @@
         </div>
       </div>
     </div>
-    <div id="quest-box">
-      <div id="quest-label">QUEST</div>
-      <div id="quest-text">Find the High Priest in the Temple</div>
+    <div id="hud-right">
+      <div id="quest-box">
+        <div id="quest-label">QUEST</div>
+        <div id="quest-text">Find the High Priest in the Temple</div>
+      </div>
+      <button id="satchel-btn" class="hidden">
+        <span id="satchel-bag-icon">&#127868;</span>
+        <span id="satchel-label">Satchel</span>
+        <span id="satchel-badge">0</span>
+      </button>
     </div>
   </div>
 
   <!-- Interact prompt (desktop) -->
   <div id="interact-prompt" class="hidden">[E] Talk</div>
 
-  <!-- Satchel / inventory bar -->
-  <div id="satchel-hud" class="hidden">
-    <span id="satchel-title">&#9874; Satchel</span>
-    <span class="satchel-divider">|</span>
-    <span id="satchel-letters" class="satchel-item hidden">&#128220; Letters</span>
-    <span id="satchel-cloth"   class="satchel-item hidden">&#129525; Cloth &#215;<span id="satchel-cloth-count">0</span></span>
-    <span id="satchel-tents"   class="satchel-item hidden">&#9978; Tents &#215;<span id="satchel-tent-count">0</span></span>
+  <!-- Satchel popup -->
+  <div id="satchel-popup" class="hidden">
+    <div id="satchel-popup-inner">
+      <div id="satchel-popup-title">&#127868; Satchel</div>
+      <div id="satchel-popup-items">
+        <div class="spi" id="sp-letters">
+          <span class="spi-icon">&#128220;</span>
+          <div class="spi-info">
+            <div class="spi-name">Letters of Passage</div>
+            <div class="spi-desc">Sealed by Caiaphas, High Priest</div>
+          </div>
+        </div>
+        <div class="spi" id="sp-cloth">
+          <span class="spi-icon">&#129525;</span>
+          <div class="spi-info">
+            <div class="spi-name">Tent Cloth</div>
+            <div class="spi-desc">Bolts: <span id="sp-cloth-count">0</span></div>
+          </div>
+        </div>
+        <div class="spi" id="sp-tents">
+          <span class="spi-icon">&#9978;</span>
+          <div class="spi-info">
+            <div class="spi-name">Woven Tents</div>
+            <div class="spi-desc">Ready to sell: <span id="sp-tent-count">0</span></div>
+          </div>
+        </div>
+        <div class="spi" id="sp-shekels-row">
+          <span class="spi-icon">&#9711;</span>
+          <div class="spi-info">
+            <div class="spi-name">Shekels</div>
+            <div class="spi-desc"><span id="sp-shekels">5</span> coins</div>
+          </div>
+        </div>
+      </div>
+      <button id="satchel-popup-close">Close</button>
+    </div>
   </div>
 
   <!-- Dialogue box -->

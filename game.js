@@ -242,6 +242,9 @@ const Game = {
     for (const dec of WORLD.decorations) {
       this.addDecoration(dec);
     }
+
+    // Temple interior furnishings
+    this.buildTempleInterior();
   },
 
   addBuilding(b) {
@@ -267,7 +270,7 @@ const Game = {
     const geo  = new THREE.BoxGeometry(p.w, 0.06, p.d);
     const mat  = new THREE.MeshStandardMaterial({ roughness: 0.88, metalness: 0, color: p.color });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(p.x, 0.03, p.z);
+    mesh.position.set(p.x, p.y || 0.03, p.z);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
   },
@@ -644,6 +647,24 @@ const Game = {
       this.tryInteract();
     }, { passive: false });
     interactBtn.addEventListener('click', () => { this.tryInteract(); }); // desktop fallback
+
+    // Satchel button
+    const satchelBtn = document.getElementById('satchel-btn');
+    if (satchelBtn) {
+      satchelBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openSatchel(); });
+      satchelBtn.addEventListener('touchstart', (e) => { e.stopPropagation(); e.preventDefault(); this.openSatchel(); }, { passive: false });
+    }
+    const satchelClose = document.getElementById('satchel-popup-close');
+    if (satchelClose) {
+      satchelClose.addEventListener('click', () => this.closeSatchel());
+      satchelClose.addEventListener('touchstart', (e) => { e.preventDefault(); this.closeSatchel(); }, { passive: false });
+    }
+    const satchelOverlay = document.getElementById('satchel-popup');
+    if (satchelOverlay) {
+      satchelOverlay.addEventListener('click', (e) => {
+        if (e.target === satchelOverlay) this.closeSatchel();
+      });
+    }
 
     // Jump button (mobile)
     const jumpBtn = document.getElementById('jump-btn');
@@ -1529,6 +1550,133 @@ const Game = {
     }, 4200);
   },
 
+  // ── TEMPLE INTERIOR FURNISHINGS ───────────────────────────
+  buildTempleInterior() {
+    const goldMat    = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.25, metalness: 0.8 });
+    const stoneMat   = new THREE.MeshStandardMaterial({ color: 0xd8d0a8, roughness: 0.85, metalness: 0 });
+    const darkMat    = new THREE.MeshStandardMaterial({ color: 0x5a4028, roughness: 0.88, metalness: 0 });
+    const purpleMat  = new THREE.MeshStandardMaterial({ color: 0x6a308a, roughness: 0.88, metalness: 0 });
+    const flameMat   = new THREE.MeshStandardMaterial({ color: 0xffcc40, roughness: 0.1, metalness: 0,
+                         emissive: new THREE.Color(0xffaa20), emissiveIntensity: 1.8 });
+
+    // ── Veil / Curtain before the Holy of Holies ──────────
+    const veilGeo = new THREE.BoxGeometry(9, 5.5, 0.12);
+    const veil    = new THREE.Mesh(veilGeo, purpleMat);
+    veil.position.set(0, 2.75, -21.0);
+    veil.castShadow = true;
+    this.scene.add(veil);
+
+    // Gold trim on veil
+    const vtGeo = new THREE.BoxGeometry(9.1, 0.12, 0.14);
+    const vtMat = new THREE.MeshStandardMaterial({ color: 0xd4a830, roughness: 0.2, metalness: 0.85 });
+    [0.06, 5.5].forEach(yv => {
+      const vt = new THREE.Mesh(vtGeo, vtMat);
+      vt.position.set(0, yv, -21.0);
+      this.scene.add(vt);
+    });
+
+    // ── Menorah (7-branch golden lampstand) ───────────────
+    // Base
+    const baseGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.12, 7);
+    const base    = new THREE.Mesh(baseGeo, goldMat);
+    base.position.set(0, 0.06, -16.5);
+    this.scene.add(base);
+
+    // Central shaft
+    const shaftGeo = new THREE.CylinderGeometry(0.055, 0.075, 1.5, 6);
+    const shaft    = new THREE.Mesh(shaftGeo, goldMat);
+    shaft.position.set(0, 0.87, -16.5);
+    this.scene.add(shaft);
+
+    // 7 arms (3 left, center, 3 right)
+    const armOffsets = [-0.84, -0.56, -0.28, 0, 0.28, 0.56, 0.84];
+    const armHeights = [ 0.85,  0.95,  1.08, 1.2, 1.08,  0.95,  0.85];
+    for (let i = 0; i < 7; i++) {
+      if (i === 3) continue; // center is the shaft
+      const armGeo = new THREE.CylinderGeometry(0.035, 0.04, 0.38, 5);
+      const arm    = new THREE.Mesh(armGeo, goldMat);
+      arm.position.set(armOffsets[i], armHeights[i], -16.5);
+      this.scene.add(arm);
+    }
+
+    // 7 candles + flames
+    for (let i = 0; i < 7; i++) {
+      const candleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 5);
+      const candle    = new THREE.Mesh(candleGeo, new THREE.MeshStandardMaterial({ color: 0xf5edd0, roughness: 0.9 }));
+      candle.position.set(armOffsets[i], armHeights[i] + 0.28, -16.5);
+      this.scene.add(candle);
+
+      const flameGeo = new THREE.ConeGeometry(0.04, 0.12, 5);
+      const flame    = new THREE.Mesh(flameGeo, flameMat);
+      flame.position.set(armOffsets[i], armHeights[i] + 0.46, -16.5);
+      this.scene.add(flame);
+    }
+
+    // ── Table of Showbread ────────────────────────────────
+    const tableTopGeo = new THREE.BoxGeometry(1.0, 0.08, 0.55);
+    const tableTop    = new THREE.Mesh(tableTopGeo, goldMat);
+    tableTop.position.set(-4.5, 0.88, -16.5);
+    this.scene.add(tableTop);
+    const tableLegGeo = new THREE.BoxGeometry(0.08, 0.85, 0.08);
+    [[-0.44, -0.22], [0.44, -0.22], [-0.44, 0.22], [0.44, 0.22]].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(tableLegGeo, goldMat);
+      leg.position.set(-4.5 + lx, 0.425, -16.5 + lz);
+      this.scene.add(leg);
+    });
+    // Bread loaves on table (12 small boxes for the 12 tribes)
+    for (let i = 0; i < 6; i++) {
+      const breadGeo = new THREE.BoxGeometry(0.13, 0.07, 0.22);
+      const breadMat = new THREE.MeshStandardMaterial({ color: 0xd4a060, roughness: 0.9 });
+      const bread    = new THREE.Mesh(breadGeo, breadMat);
+      bread.position.set(-4.75 + i * 0.2, 0.975, -16.5);
+      this.scene.add(bread);
+    }
+
+    // ── Incense Altar (between menorah and veil) ──────────
+    const incGeo  = new THREE.BoxGeometry(0.55, 0.75, 0.55);
+    const incMesh = new THREE.Mesh(incGeo, goldMat);
+    incMesh.position.set(0, 0.375, -19.5);
+    this.scene.add(incMesh);
+    // Incense smoke wisps (thin vertical boxes)
+    const smokeMat = new THREE.MeshStandardMaterial({ color: 0xddd8cc, roughness: 0.9, transparent: true, opacity: 0.55 });
+    [-0.06, 0, 0.06].forEach((sx, si) => {
+      const smokeGeo = new THREE.BoxGeometry(0.05, 0.5 + si * 0.1, 0.05);
+      const smoke    = new THREE.Mesh(smokeGeo, smokeMat);
+      smoke.position.set(sx, 1.05 + si * 0.05, -19.5 + sx * 0.5);
+      this.scene.add(smoke);
+    });
+
+    // ── Decorated floor tiles inside temple ───────────────
+    const tileColors = [0xd8d0a0, 0xc8c090];
+    for (let tx = -4; tx <= 4; tx += 2) {
+      for (let tz = -12; tz >= -21; tz -= 2) {
+        const tileGeo = new THREE.BoxGeometry(1.95, 0.04, 1.95);
+        const col     = ((tx + tz) % 2 === 0) ? tileColors[0] : tileColors[1];
+        const tileMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.7 });
+        const tile    = new THREE.Mesh(tileGeo, tileMat);
+        tile.position.set(tx, 1.22, tz);
+        tile.receiveShadow = true;
+        this.scene.add(tile);
+      }
+    }
+
+    // ── Two large urns flanking entrance ─────────────────
+    const urnColors = [0xc09050, 0xa07040];
+    [[-2.5, -13.2], [2.5, -13.2]].forEach(([ux, uz], ui) => {
+      const urnGeo = new THREE.CylinderGeometry(0.22, 0.15, 0.65, 7);
+      const urnMat = new THREE.MeshStandardMaterial({ color: urnColors[ui % 2], roughness: 0.85 });
+      const urn    = new THREE.Mesh(urnGeo, urnMat);
+      urn.position.set(ux, 1.545, uz);
+      urn.castShadow = true;
+      this.scene.add(urn);
+    });
+
+    // ── Warm interior point light (menorah glow) ──────────
+    const menorahLight = new THREE.PointLight(0xffcc60, 1.8, 14);
+    menorahLight.position.set(0, 2.8, -16.5);
+    this.scene.add(menorahLight);
+  },
+
   // ── FOLLOWERS (recruited soldiers) ────────────────────────
   updateFollowers(dt) {
     if (!this.hasLetters) return;
@@ -1879,36 +2027,50 @@ const Game = {
     draw();
   },
 
-  // ── COMPASS ───────────────────────────────────────────────
-  updateCompass() {
-    if (!this.elCompassFace) return;
-    // Rotate face so that 'N' label points toward world north (-z)
-    // player.facingAngle: 0 = facing south (+z), PI = facing north (-z)
-    const deg = (Math.PI - this.player.facingAngle) * (180 / Math.PI);
-    this.elCompassFace.style.transform = 'rotate(' + deg.toFixed(1) + 'deg)';
-  },
+  // ── COMPASS (static — N always = up on screen = world north) ──
+  updateCompass() { /* static compass — no rotation needed */ },
 
   // ── SATCHEL HUD ───────────────────────────────────────────
   updateSatchelHUD() {
-    const elLetters = document.getElementById('satchel-letters');
-    const elCloth   = document.getElementById('satchel-cloth');
-    const elTents   = document.getElementById('satchel-tents');
-    const elCC      = document.getElementById('satchel-cloth-count');
-    const elTC      = document.getElementById('satchel-tent-count');
+    // Show satchel button when player has letters
+    const btn = document.getElementById('satchel-btn');
+    if (btn && this.hasLetters) btn.classList.remove('hidden');
 
-    if (elLetters) elLetters.classList.toggle('hidden', !this.hasLetters);
-    if (elCloth) {
-      elCloth.classList.toggle('hidden', this.inventory.tentCloth === 0);
-      if (elCC) elCC.textContent = this.inventory.tentCloth;
-    }
-    if (elTents) {
-      elTents.classList.toggle('hidden', this.inventory.tents === 0);
-      if (elTC) elTC.textContent = this.inventory.tents;
-    }
+    // Badge count = total items
+    const count = (this.hasLetters ? 1 : 0) + this.inventory.tentCloth + this.inventory.tents;
+    const badge = document.getElementById('satchel-badge');
+    if (badge) badge.textContent = count;
 
-    // Show satchel bar if player has letters
-    const satchel = document.getElementById('satchel-hud');
-    if (satchel && this.hasLetters) satchel.classList.remove('hidden');
+    // Update popup items if open
+    const elLetters = document.getElementById('sp-letters');
+    const elCloth   = document.getElementById('sp-cloth');
+    const elTents   = document.getElementById('sp-tents');
+    const elCC      = document.getElementById('sp-cloth-count');
+    const elTC      = document.getElementById('sp-tent-count');
+    const elShekels = document.getElementById('sp-shekels');
+
+    if (elLetters) elLetters.style.opacity = this.hasLetters ? '1' : '0.3';
+    if (elCloth && elCC) {
+      elCC.textContent = this.inventory.tentCloth;
+      elCloth.style.opacity = this.inventory.tentCloth > 0 ? '1' : '0.3';
+    }
+    if (elTents && elTC) {
+      elTC.textContent = this.inventory.tents;
+      elTents.style.opacity = this.inventory.tents > 0 ? '1' : '0.3';
+    }
+    if (elShekels) elShekels.textContent = this.inventory.shekels;
+  },
+
+  openSatchel() {
+    const popup = document.getElementById('satchel-popup');
+    if (!popup) return;
+    this.updateSatchelHUD();
+    popup.classList.remove('hidden');
+  },
+
+  closeSatchel() {
+    const popup = document.getElementById('satchel-popup');
+    if (popup) popup.classList.add('hidden');
   },
 };
 
